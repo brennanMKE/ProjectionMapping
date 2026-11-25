@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>mapper</title>
+<style>
+  html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: #000; cursor: none; }
+  body.edit { cursor: default; }
+  .surface { position: fixed; top: 0; left: 0; overflow: hidden; background: #000; box-sizing: border-box; }
+  .surface > .content { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+  .surface > video.content, .surface > img.content { object-fit: cover; }
+  .surface > .pattern { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; display: none; }
+  body.show-pattern .surface > .pattern { display: block; }
+  #blackout { position: fixed; inset: 0; background: #000; z-index: 900000; display: none; }
+  body.blackout #blackout { display: block; }
+  #hud { position: fixed; left: 8px; bottom: 8px; z-index: 1000001; font: 14px/1.3 monospace; color: #0f0;
+         background: rgba(0,0,0,.7); padding: 6px 8px; display: none; white-space: pre; pointer-events: none; }
+  body.edit #hud, body.offline #hud { display: block; }
+  body.offline #hud { color: #f80; }
+</style>
+</head>
+<body>
+<div id="stage"></div>
+<div id="blackout"></div>
+<div id="hud"></div>
+<script src="/js/maptastic.min.js"></script>
+<script type="module" src="/js/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,10 @@
+/build/
+/logs/
+/mapd.json
+/kiosk.flags
+media/*
+!media/test.mp4
+!media/.gitkeep
+layouts/*
+!layouts/example.json
+.DS_Store

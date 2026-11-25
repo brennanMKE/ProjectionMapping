@@ -1,0 +1,26 @@
+{
+  "screen": { "w": 1920, "h": 1080 },
+  "surfaces": [
+    {
+      "id": "left",
+      "w": 640, "h": 360,
+      "content": { "type": "video", "src": ["face-a.mp4", "test.mp4"], "fit": "cover" },
+      "targetPoints": [[420, 300], [940, 380], [940, 820], [420, 760]],
+      "sourcePoints": [[0, 0], [640, 0], [640, 360], [0, 360]]
+    },
+    {
+      "id": "right",
+      "w": 640, "h": 360,
+      "content": { "type": "video", "src": ["face-b.mp4", "test.mp4"], "fit": "cover" },
+      "targetPoints": [[940, 380], [1500, 300], [1500, 760], [940, 820]],
+      "sourcePoints": [[0, 0], [640, 0], [640, 360], [0, 360]]
+    },
+    {
+      "id": "top",
+      "w": 640, "h": 360,
+      "content": { "type": "canvas", "sketch": "colorcycle" },
+      "targetPoints": [[940, 120], [1500, 300], [940, 380], [420, 300]],
+      "sourcePoints": [[0, 0], [640, 0], [640, 360], [0, 360]]
+    }
+  ]
+}

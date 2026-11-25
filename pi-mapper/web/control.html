@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>mapper control</title>
+<style>
+  :root { color-scheme: dark; --bg: #111; --panel: #1c1c1e; --line: #333; --fg: #eee; --dim: #999; --accent: #0a84ff; --warn: #ff9f0a; --bad: #ff453a; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--fg); font: 15px/1.4 -apple-system, system-ui, sans-serif; padding: env(safe-area-inset-top) 0 40px; }
+  header { position: sticky; top: 0; z-index: 10; background: #000; padding: 10px 12px; display: flex; gap: 10px; align-items: center; border-bottom: 1px solid var(--line); }
+  header h1 { font-size: 17px; margin: 0; flex: 1; }
+  .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--bad); }
+  .dot.on { background: #30d158; }
+  section { background: var(--panel); margin: 10px; padding: 12px; border-radius: 10px; }
+  section h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .05em; color: var(--dim); margin: 0 0 10px; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 8px; }
+  .row:last-child { margin-bottom: 0; }
+  button, select, input { font: inherit; color: var(--fg); background: #2c2c2e; border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; min-height: 44px; }
+  button { cursor: pointer; }
+  button:active { background: #3a3a3c; }
+  button.primary { background: var(--accent); border-color: var(--accent); }
+  button.on { background: var(--warn); border-color: var(--warn); color: #000; }
+  button.danger { color: var(--bad); }
+  .cues { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+  .cues button { font-size: 16px; font-weight: 600; padding: 14px 4px; }
+  select, input[type=text] { flex: 1; min-width: 0; }
+  select[multiple] { min-height: 110px; width: 100%; }
+  input[type=color] { width: 60px; padding: 4px; }
+  label { color: var(--dim); font-size: 13px; }
+  #editor-wrap { position: relative; width: 100%; background: #000; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; touch-action: none; }
+  #editor { display: block; width: 100%; touch-action: none; }
+  .surfaces { display: flex; gap: 6px; flex-wrap: wrap; }
+  .surfaces button { min-height: 36px; padding: 6px 10px; }
+  .surfaces button.sel { outline: 2px solid var(--accent); }
+  .corners button { width: 44px; font-weight: 700; }
+  .corners button.sel { outline: 2px solid #fff; }
+  .pad { display: grid; grid-template-columns: repeat(3, 52px); gap: 6px; }
+  .pad button { padding: 0; font-size: 20px; }
+  .kv { display: grid; grid-template-columns: max-content 1fr; gap: 2px 12px; font: 13px/1.5 ui-monospace, monospace; }
+  .kv div:nth-child(odd) { color: var(--dim); }
+  .hint { color: var(--dim); font-size: 13px; margin: 6px 0 0; }
+  #save-state { min-height: 1.4em; }
+  #toast { position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%); background: #333; padding: 8px 14px; border-radius: 8px; display: none; z-index: 20; }
+</style>
+</head>
+<body>
+<header>
+  <div class="dot" id="conn"></div>
+  <h1 id="title">mapper</h1>
+  <span id="role" style="color:var(--dim);font-size:13px"></span>
+</header>
+
+<section>
+  <h2>Cues</h2>
+  <div class="cues">
+    <button data-cue="play" class="primary">Play</button>
+    <button data-cue="pause">Pause</button>
+    <button data-cue="next">Next</button>
+    <button data-cue="blackout" id="blackout-btn">Black</button>
+  </div>
+</section>
+
+<section>
+  <h2>Mode</h2>
+  <div class="row">
+    <button id="edit-btn">Edit mode: off</button>
+    <label for="pattern">Pattern</label>
+    <select id="pattern"></select>
+  </div>
+</section>
+
+<section>
+  <h2>Layout</h2>
+  <div class="row">
+    <select id="layouts"></select>
+    <button id="save-as">Save as…</button>
+    <button id="delete-layout" class="danger">Delete</button>
+  </div>
+  <p class="hint" id="save-state"></p>
+</section>
+
+<section>
+  <h2>Surfaces</h2>
+  <div class="row surfaces" id="surface-list"></div>
+  <div class="row">
+    <button id="add-surface">+ Add</button>
+    <button id="remove-surface" class="danger">Remove</button>
+    <button id="raise-surface">Bring to front</button>
+  </div>
+</section>
+
+<section id="corner-section">
+  <h2>Corners</h2>
+  <div id="editor-wrap"><canvas id="editor"></canvas></div>
+  <p class="hint">Drag a corner to move it, or drag inside the selected surface to move the whole thing. Turn on the “corners” pattern to see the numbers on the projector.</p>
+  <div class="row" style="margin-top:10px">
+    <div class="row corners" id="corners" style="margin:0">
+      <button data-c="0">1</button><button data-c="1">2</button><button data-c="2">3</button><button data-c="3">4</button><button data-c="-1">all</button>
+    </div>
+  </div>
+  <div class="row">
+    <div class="pad">
+      <span></span><button data-d="0,-1">↑</button><span></span>
+      <button data-d="-1,0">←</button><button id="step">1</button><button data-d="1,0">→</button>
+      <span></span><button data-d="0,1">↓</button><span></span>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:6px">
+      <button id="reset-rect">Reset to rectangle</button>
+      <button id="flip-h">Flip H</button>
+      <button id="rotate">Rotate 90°</button>
+    </div>
+  </div>
+</section>
+
+<section id="content-section">
+  <h2>Content</h2>
+  <div class="row">
+    <label for="ctype">Type</label>
+    <select id="ctype">
+      <option value="video">video</option>
+      <option value="image">image</option>
+      <option value="canvas">canvas sketch</option>
+      <option value="color">solid color</option>
+    </select>
+    <label for="csize">Shape</label>
+    <select id="csize">
+      <option value="640x360">16:9</option>
+      <option value="480x360">4:3</option>
+      <option value="360x360">1:1</option>
+      <option value="360x640">9:16</option>
+    </select>
+  </div>
+  <div class="row" id="c-video">
+    <label style="width:100%">Clips (multi-select; “Next” steps through them)</label>
+    <select id="cvideo" multiple></select>
+  </div>
+  <div class="row" id="c-image"><select id="cimage"></select></div>
+  <div class="row" id="c-canvas"><select id="csketch"></select></div>
+  <div class="row" id="c-color"><input type="color" id="ccolor" value="#ffffff"></div>
+  <div class="row" id="c-fit">
+    <label for="cfit">Fit</label>
+    <select id="cfit"><option value="cover">cover</option><option value="fill">fill (stretch)</option><option value="contain">contain</option></select>
+  </div>
+</section>
+
+<section>
+  <h2>Status</h2>
+  <div class="kv" id="status"></div>
+</section>
+
+<div id="toast"></div>
+<script type="module" src="/js/control.js"></script>
+</body>
+</html>

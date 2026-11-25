@@ -1,0 +1,7 @@
+{
+  "addr": ":8080",
+  "name": "pi-a",
+  "role": "leader",
+  "leader": "",
+  "cueDelayMs": 200
+}
