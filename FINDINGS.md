@@ -15,7 +15,7 @@ Last updated 2026-11-25. Raw probe output is on mizar in `~/projector-probe/`.
 | Select HDMI input (no ADB) | USB keyboard menu sequence | Works, about 12 s |
 | Navigate (arrows, OK, Home, Back) | USB keyboard (HID gadget) or `adb shell input keyevent` | Works |
 | Light source off/on, Android stays up | Vendor API `AwTvSystemManager.setBacklightEnable(bool)` from a sideloaded app | **Very likely possible without root** (SELinux allows it); app not built yet |
-| Standby (full off) | USB consumer Power key, or `input keyevent POWER` | Works |
+| Standby (full off) | USB system Power key (`projkey power`), USB consumer Power key, or `input keyevent POWER` | Works |
 | Wake from standby | IR power code (17 accepted, listed below) | Needs an IR LED; USB, ADB and CEC can't wake it |
 | Power on with mains power | `AwTvSystemManager.setPowerOnMode(DIRECT)` | Possible via the same app; not tried |
 | Sleep/Wake keys (HID, ADB) | | Ignored by the firmware |
@@ -49,8 +49,26 @@ Last updated 2026-11-25. Raw probe output is on mizar in `~/projector-probe/`.
    this computer".** Without it the authorization was lost after the second
    projector reboot, and mizar showed as `unauthorized` until accepted again.
 4. ADB comes back about 40 s after a projector reboot.
+5. ADB over Wi-Fi isn't always there. Late on 2026-11-25, after hours of
+   use, `adb mdns services` listed nothing and no device was connected,
+   while the USB keyboard still worked (the system Power key put the
+   projector in standby). Cause unknown. If it happens, try
+   `adb connect <projector-ip>:5555` with the address from the router, or
+   fall back to the USB keyboard. An IR transmitter avoids depending on either.
 
 The shell user is `uid=2000(shell)`, no root.
+
+### How projd uses ADB
+
+- **Discovery:** it browses mDNS for `_adb._tcp` and connects to whatever it
+  finds, so no IP address is configured anywhere.
+- **Status:** it checks the ADB state in the background every 10 s (it takes
+  1–2 s), and the web UI's status panel shows the cached result.
+- **HDMI:** the web UI's **Switch to HDMI** button, and the switch when the
+  projector connects, run the `am start ... --es input_source HDMI1` command
+  below. If ADB isn't available it falls back to the USB keyboard menu sequence.
+- **Remote:** the web UI's D-pad, Home, Back and Standby buttons press keys
+  through the USB keyboard gadget (`projkey`), not ADB.
 
 ## HDMI input, directly
 
@@ -142,6 +160,7 @@ extended `necx`) still needs a test.
 | --- | --- | --- |
 | arrows, enter | Keyboard 0x52/0x51/0x50/0x4F, 0x28 | Navigate / select |
 | home / back | Consumer 0x223 / 0x224 | Home / Back |
+| power | System Power (bit 0x01) | Standby (from on); confirmed 2026-11-25 |
 | cpower | Consumer 0x30 | Standby (from on) |
 | tv | Consumer 0x89 | No effect |
 | sleep / wake | System 0x82 / 0x83 | No effect |
@@ -151,6 +170,13 @@ Menu sequence to HDMI (no ADB):
 `home up up up down down left left left left left right right right right enter`.
 The launcher remembers the last tile, and running off an edge hides the
 highlight; one press back returns it to the edge tile.
+
+## HDMI audio
+
+The projector plays HDMI audio from the Pi through its speaker. On the Pi Zero
+it's ALSA card `vc4hdmi`; skyd's video player sends audio with ffmpeg to
+`default:CARD=vc4hdmi`. The 720p60 output mode carries audio. (We haven't yet
+confirmed by ear that the sound is clean.)
 
 ## HDMI-CEC
 
@@ -177,5 +203,8 @@ USB reconnect ("projector connected over USB").
    `AwTvSystemManager.setBacklightEnable()` and exposes it over the LAN with
    a token, plus direct HDMI and the power-on mode. Needs a JDK and the
    Android SDK on the Mac (not installed).
-3. **IR LED** on mizar for waking from standby, using one of the 17 codes above.
+3. **IR LED** on mizar for waking from standby, using one of the 17 codes
+   above, and for standby too, so neither power direction depends on ADB or
+   the USB cable. Then mizar can run from its own supply with no USB link
+   (see `pi-mapper/docs/mizar-power-wifi-ir.md`).
 4. Test `setPowerOnMode(DIRECT)` with a smart plug as an alternative to IR.
