@@ -1,31 +1,67 @@
 # ProjectionMapping
 
-Experiments with projection mapping on Raspberry Pis, each driving a low-cost
-projector over HDMI: video and images warped onto boxes, wall corners and other
-objects, adjusted from a phone or laptop.
+Projection mapping on Raspberry Pis, each driving a low-cost projector over
+HDMI. The main project turns a room corner (two walls and the ceiling) into a
+3D stage: a Pi Zero 2 W renders live scenes from the viewer's point of view, so
+the corner seems to open up, fill with water, grow cubes, or become a night sky
+with Santa crossing the moon. Everything is controlled from a phone or laptop.
+
+## Demo
+
+[![Corner projection demo](pi-mapper/docs/images/santa-moon.jpg)](VIDEO_URL)
+
+**[Watch the demo on YouTube](VIDEO_URL)**: every scene, recorded in a dark room.
+
+## How it works
+
+- **Corner calibration.** In the web UI you drag four dots onto the corner as
+  the projector shows them: the vertex, and one point on each seam. From those
+  the Pi works out the projector's pose and a viewer position, and builds a
+  projector-to-viewer mesh.
+- **Live rendering (`skyd`).** A small C renderer (KMS/DRM, GLES2, no desktop
+  and no browser) ray-traces each scene from the viewer's eye onto the three
+  real surfaces, masked to a room-aligned shape. Scenes are GLSL fragment
+  shaders; physics for the moving-object scenes runs once per frame on the CPU.
+- **Control (`projd`).** A Go server with a tabbed web UI: projector input and
+  power, demos and playlists, the night sky (snow, moon, Santa), video, corner
+  calibration and flat-video warp. Calibration uses a WebSocket with
+  acknowledgement-based flow control, so the pointer and dots follow you live.
+- **Video in the corner.** Pick a video on the Pi and it plays on a screen
+  floating in the middle of the corner, with sound through the projector.
+
+## Scenes
+
+About 30 scenes in four loops, plus a "top 12" playlist you choose in the UI:
+
+- **Loop 1:** scanning planes, membrane push, cube break-out, corner flip,
+  window, relief panels, water fill, corner spin, night sky.
+- **Loop 2:** spotlight reveal, X-ray wall, bouncing balls, vortex, pin screen,
+  puzzle cube, string art, liquid metal, snowfall, infinite corner.
+- **Loop 3 (physics across all three faces):** marble run, breakout, gravity
+  carousel, portal juggle, crawlers.
+- **Neon:** neon grid, wire tunnel, rotor grid, equalizer.
+
+The scene briefs are in [`corner-illusions-demo.md`](corner-illusions-demo.md),
+[`-2`](corner-illusions-demo-2.md) and [`-3`](corner-illusions-demo-3.md).
 
 ## What's here
 
 | Path | What it is |
 | --- | --- |
-| [`pi-mapper/`](pi-mapper/) | Browser-based mapper for the Raspberry Pi 5: a Go server (`mapd`), a fullscreen Chromium projector page warped with maptastic.js, and a phone-friendly control page. Supports two Pis with synced cues. See its [README](pi-mapper/README.md). |
-| [`pi-mapper/headless/`](pi-mapper/headless/) | Browser-free approach: mpv plays straight to HDMI from Raspberry Pi OS Lite, and `cornerpin.py` warps the picture onto four corners. |
-| [`pi-mapper/corner/`](pi-mapper/corner/) | Test videos for a wall-wall-ceiling corner, rendered in 3D for the projector's measured position by `cmd/cornergen`. |
-| [`pi-mapper/docs/pi-zero-headless-guide.md`](pi-mapper/docs/pi-zero-headless-guide.md) | Step-by-step test guide for the headless approach on a Pi Zero 2 W. |
-| [`pi-mapper/docs/ofxpimapper-pi5.md`](pi-mapper/docs/ofxpimapper-pi5.md) | Runbook for trying ofxPiMapper (openFrameworks) on a Pi 5. |
-| [`pi5-projection-mapping-handoff.md`](pi5-projection-mapping-handoff.md) | The original brief: goals, constraints and options. |
-
-## Status
-
-- **Headless (Pi Zero 2 W, no browser):** the direction being pursued. The warp
-  math is tested; playback and the shader still need a run on real hardware.
-- **Browser mapper (Pi 5):** built and tested on macOS; not yet run on a Pi.
-- **ofxPiMapper:** not started.
+| [`pi-mapper/cmd/projd/`](pi-mapper/cmd/projd/) | The control server and web UI for the headless Pi. |
+| [`pi-mapper/skyd/`](pi-mapper/skyd/) | The live renderer (`skyd.c`, `sims.c`) and all scene shaders. |
+| [`pi-mapper/corner/`](pi-mapper/corner/) | Corner geometry tools, including structured-light calibration with a webcam. |
+| [`pi-mapper/headless/`](pi-mapper/headless/) | Browser-free setup: USB keyboard gadget for the projector, corner-pin warp. |
+| [`pi-mapper/deploy/`](pi-mapper/deploy/) | systemd units. |
+| [`pi-mapper/docs/`](pi-mapper/docs/) | Guides: headless Pi Zero setup, projector power/Wi-Fi/IR notes. |
+| [`pi-mapper/`](pi-mapper/) (`mapd`) | The earlier browser-based mapper for a Pi 5. See its [README](pi-mapper/README.md). |
+| [`pi5-projection-mapping-handoff.md`](pi5-projection-mapping-handoff.md) | The original brief. |
 
 ## Requirements
 
-- Raspberry Pi Zero 2 W or Pi 5, a projector, and a microSD card
+- Raspberry Pi Zero 2 W (or Pi 5), a projector with HDMI input, a microSD card
 - On the Mac: Go 1.23+, ffmpeg, and Raspberry Pi Imager
+- On the Pi: Raspberry Pi OS Lite, mpv, ffmpeg, and the GLES2/GBM development packages to build `skyd`
 
 ## License
 

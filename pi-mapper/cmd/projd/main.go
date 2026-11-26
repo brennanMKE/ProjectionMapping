@@ -12,6 +12,7 @@
 package main
 
 import (
+	"bufio"
 	"context"
 	"embed"
 	"encoding/json"
@@ -61,15 +62,57 @@ type Config struct {
 
 // State is what survives restarts.
 type State struct {
-	Corners  [4][2]float64 `json:"corners"` // pixels: TL, TR, BR, BL
-	Clip     string        `json:"clip"`
-	Paused   bool          `json:"paused"`
-	Blackout bool          `json:"blackout"`
-	Live     bool          `json:"live"`  // real-time sky (skyd) instead of mpv
-	Snow     float64       `json:"snow"`  // 0..1
-	Speed    float64       `json:"speed"` // snowfall speed multiplier
-	Scene    string        `json:"scene"` // live scene: shader name in the skyd dir (sky, cube)
-	Pattern  bool          `json:"pattern"`
+	Corners   [4][2]float64 `json:"corners"` // pixels: TL, TR, BR, BL
+	Clip      string        `json:"clip"`
+	Paused    bool          `json:"paused"`
+	Blackout  bool          `json:"blackout"`
+	Live      bool          `json:"live"`      // real-time sky (skyd) instead of mpv
+	Snow      float64       `json:"snow"`      // 0..1
+	Speed     float64       `json:"speed"`     // snowfall speed multiplier
+	Scene     string        `json:"scene"`     // live scene: shader name in the skyd dir (sky, cube)
+	Corner    Corner        `json:"corner"`    // corner calibration markers
+	Moon      MoonSettings  `json:"moon"`      // sky scene: moon and sleigh placement
+	CalibMsg  string        `json:"calibMsg"`  // result of the last save
+	PrevScene string        `json:"prevScene"` // scene to return to after calibrating
+	Pattern   bool          `json:"pattern"`
+	Video     VideoState    `json:"video"` // video on the floating screen in the corner
+	Top       []string      `json:"top"`   // the chosen scenes (up to 12): shown first, and the "top" loop
+}
+
+// VideoState is the clip playing on the floating screen (video scene).
+type VideoState struct {
+	Clip   string `json:"clip"`
+	Loop   bool   `json:"loop"`
+	Paused bool   `json:"paused"`
+	Return string `json:"return"` // scene to go back to when it ends
+}
+
+func (s *Server) topList() []string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return append([]string(nil), s.st.Top...)
+}
+
+// hasAudio reports whether a media file has an audio stream.
+func hasAudio(path string) bool {
+	out, err := exec.Command("ffprobe", "-v", "error", "-select_streams", "a", "-show_entries", "stream=index", "-of", "csv=p=0", path).Output()
+	return err == nil && strings.TrimSpace(string(out)) != ""
+}
+
+// playVideo tells skyd to play a clip on the floating screen.
+func (s *Server) playVideo(v VideoState) {
+	p, ok := s.clipPath(v.Clip)
+	if !ok {
+		return
+	}
+	a, l := 0, 0
+	if hasAudio(p) {
+		a = 1
+	}
+	if v.Loop {
+		l = 1
+	}
+	skySend(fmt.Sprintf("video %d %d %s", a, l, p))
 }
 
 type Server struct {
@@ -151,6 +194,7 @@ func main() {
 		go s.runMpv(ctx)
 		go s.watchDisplay(ctx)
 	}
+	go s.watchADB(ctx)
 	if cfg.HDMIOnBoot > 0 {
 		go s.hdmiOnBoot(ctx)
 	}
@@ -172,13 +216,19 @@ func main() {
 // ---------------------------------------------------------------- state
 
 func (s *Server) load() {
-	s.st = State{Corners: fullScreen(s.cfg.W, s.cfg.H), Speed: 1}
+	s.st = State{Corners: fullScreen(s.cfg.W, s.cfg.H), Speed: 1, Corner: defaultCorner(), Moon: defaultMoon()}
 	b, err := os.ReadFile(s.cfg.StateFile)
 	if err == nil {
 		if err := json.Unmarshal(b, &s.st); err != nil {
 			log.Printf("state: %v (using defaults)", err)
 			s.st = State{Corners: fullScreen(s.cfg.W, s.cfg.H)}
 		}
+	}
+	if s.st.Moon.Size == 0 {
+		s.st.Moon = defaultMoon()
+	}
+	if s.st.Corner.Throw == 0 {
+		s.st.Corner = defaultCorner()
 	}
 	if s.st.Clip == "" {
 		if clips := s.clips(); len(clips) > 0 {
@@ -360,22 +410,50 @@ func (s *Server) runSky(ctx context.Context) {
 			s.mu.Lock()
 			snow, speed := s.st.Snow, s.st.Speed
 			s.mu.Unlock()
-			d := s.cfg.SkydDir
 			s.mu.Lock()
 			scene := s.st.Scene
 			s.mu.Unlock()
 			if scene == "" {
 				scene = "sky"
 			}
-			cmd := exec.Command(s.cfg.Skyd, filepath.Join(d, "mesh.bin"), filepath.Join(d, "rect.json"),
-				filepath.Join(d, scene+".frag"), filepath.Join(d, "sleigh.raw"))
+			cmd := exec.Command(s.cfg.Skyd, s.cfg.SkydDir, skydScenes)
 			cmd.Env = append(os.Environ(), fmt.Sprintf("SKYD_SNOW=%g", snow), fmt.Sprintf("SKYD_SPEED=%g", speed),
-				"SKYD_UNIFORMS="+filepath.Join(d, "uniforms.txt"))
-			if scene == "cube" {
-				cmd.Env = append(cmd.Env, "SKYD_SCALE=0.5") // ray tracing: render at half size
+				"SKYD_SCENE="+scene, "SKYD_PLAYLIST="+strings.Join(s.topList(), ","))
+			cmd.Stdout = os.Stdout
+			var pwc *os.File
+			// watch skyd's log for a finished video, to put the state back
+			if pr, pw, err := os.Pipe(); err == nil {
+				cmd.Stderr = pw
+				go func() {
+					sc := bufio.NewScanner(pr)
+					for sc.Scan() {
+						line := sc.Text()
+						fmt.Fprintln(os.Stderr, line)
+						if strings.Contains(line, "skyd: video ended") {
+							s.mu.Lock()
+							changed := s.st.Scene == "video" && !s.st.Video.Loop
+							if changed {
+								s.st.Scene = s.st.Video.Return
+								if s.st.Scene == "" {
+									s.st.Scene = "sky"
+								}
+							}
+							s.mu.Unlock()
+							if changed {
+								s.save() // takes the lock itself
+							}
+						}
+					}
+				}()
+				pwc = pw
+			} else {
+				cmd.Stderr = os.Stderr
 			}
-			cmd.Stdout, cmd.Stderr = os.Stdout, os.Stderr
-			if err := cmd.Start(); err != nil {
+			err := cmd.Start()
+			if pwc != nil {
+				pwc.Close() // the child has its copy; EOF on the reader when skyd exits
+			}
+			if err != nil {
 				log.Printf("skyd: %v", err)
 				time.Sleep(5 * time.Second)
 				continue
@@ -384,6 +462,26 @@ func (s *Server) runSky(ctx context.Context) {
 			s.skydCmd = cmd
 			s.procMu.Unlock()
 			log.Printf("skyd: started")
+			go func() { time.Sleep(1500 * time.Millisecond); s.mu.Lock(); m := s.st.Moon; s.mu.Unlock(); s.sendMoon(m) }()
+			if scene == "video" {
+				go func() {
+					time.Sleep(2 * time.Second)
+					s.mu.Lock()
+					v := s.st.Video
+					s.st.Video.Paused = false
+					s.mu.Unlock()
+					s.playVideo(v)
+				}()
+			}
+			if scene == "calib" {
+				go func() {
+					time.Sleep(1500 * time.Millisecond)
+					s.mu.Lock()
+					c := s.st.Corner
+					s.mu.Unlock()
+					s.sendCalib(c)
+				}()
+			}
 			go func() {
 				err := cmd.Wait()
 				log.Printf("skyd exited: %v", err)
@@ -406,6 +504,68 @@ func (s *Server) runSky(ctx context.Context) {
 		case <-time.After(400 * time.Millisecond):
 		}
 	}
+}
+
+// skydScenes lists the live scenes in demo-loop order: name:seconds[:scale]
+// (scale 0.5 renders at half resolution, for the ray-traced scenes).
+// name:seconds:scale:loop. Loop 2 (corner-illusions-demo-2.md) in its show order.
+const skydScenes = "calib:0,video:0,scan:15,membrane:15:0.5,cube:24:0.5,flip:15,window:20:0.5,relief:15:0.5,water:20:0.5,spin:15:0.5,sky:25:0.5," +
+	"spotlight:15:0.5:2,xray:20:0.5:2,balls:20:0.5:2,vortex:15:0.5:2,pins:20:0.5:2,puzzle:20:0.5:2,strings:20:0.5:2,metal:20:0.5:2,snowfall:25:0.5:2,infinite:15:0.5:2," +
+	"marble:30:0.4:3,breakout:25:0.35:3,carousel:25:0.35:3,juggle:20:0.5:3,crawlers:20:0.4:3," +
+	"neon_grid:16:1:4,wire_tunnel:16:1:4,rotor_grid:16:1:4,equalizer:16:0.5:4"
+
+// MoonSettings places the moon on a wall and the sleigh's path relative to it.
+type MoonSettings struct {
+	Wall   string  `json:"wall"`   // "left" or "right"
+	Across float64 `json:"across"` // 0..1 along the ceiling seam
+	Down   float64 `json:"down"`   // 0..1 down the wall
+	Size   float64 `json:"size"`   // angular radius, radians
+	SantaY float64 `json:"santaY"` // sleigh height relative to the moon, in moon diameters
+}
+
+func defaultMoon() MoonSettings {
+	return MoonSettings{Wall: "left", Across: 0.55, Down: 0.55, Size: 0.065, SantaY: 0}
+}
+
+func (s *Server) sendMoon(m MoonSettings) {
+	side := 0.0
+	if m.Wall == "right" {
+		side = 1
+	}
+	skySend(fmt.Sprintf("set u_moon %g %g %g", side, m.Across, m.Down))
+	skySend(fmt.Sprintf("set u_moonsize %g", m.Size))
+	skySend(fmt.Sprintf("set u_santay %g", m.SantaY))
+}
+
+// sendCalib shows the calibration markers live (calib scene).
+func (s *Server) sendCalib(c Corner) {
+	skySend(fmt.Sprintf("set u_v %g %g", c.Vertex[0], c.Vertex[1]))
+	skySend(fmt.Sprintf("set u_d %g %g", c.Down[0], c.Down[1]))
+	skySend(fmt.Sprintf("set u_l %g %g", c.Left[0], c.Left[1]))
+	skySend(fmt.Sprintf("set u_r %g %g", c.Right[0], c.Right[1]))
+	skySend("set u_cursor -1000 -1000") // hidden until the pointer is over the editor
+}
+
+// saveCalib computes the geometry from the markers and restarts skyd with it.
+// The first time, the webcam-based calibration files are kept in webcam-backup/.
+func (s *Server) saveCalib(c Corner) (string, error) {
+	d := s.cfg.SkydDir
+	bk := filepath.Join(d, "webcam-backup")
+	if _, err := os.Stat(bk); os.IsNotExist(err) {
+		os.MkdirAll(bk, 0o755)
+		for _, f := range []string{"mesh.bin", "uniforms.txt", "rect.json"} {
+			if b, err := os.ReadFile(filepath.Join(d, f)); err == nil {
+				os.WriteFile(filepath.Join(bk, f), b, 0o644)
+			}
+		}
+	}
+	msg, err := writeGeometry(c, s.cfg.W, s.cfg.H, d)
+	if err != nil {
+		return "", err
+	}
+	log.Printf("calibration saved: %s", msg)
+	skySend("reload") // skyd picks up the new geometry without restarting (no HDMI re-sync)
+	return msg, nil
 }
 
 // skySend sends a control command to skyd (UDP 127.0.0.1:8766).
@@ -591,6 +751,27 @@ func (s *Server) adbShell(cmd string) (string, error) {
 	return adbRun(10*time.Second, "-s", t, "shell", cmd)
 }
 
+// ADB state is slow to query (mDNS + adb), so it is refreshed in the
+// background and status answers from the cache.
+var (
+	adbCacheMu sync.Mutex
+	adbCache   = "checking"
+)
+
+func (s *Server) watchADB(ctx context.Context) {
+	for {
+		st := s.adbState()
+		adbCacheMu.Lock()
+		adbCache = st
+		adbCacheMu.Unlock()
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(10 * time.Second):
+		}
+	}
+}
+
 func (s *Server) adbState() string {
 	adbMu.Lock()
 	defer adbMu.Unlock()
@@ -661,6 +842,16 @@ func (s *Server) routes() http.Handler {
 	mux.Handle("GET /", http.FileServer(http.FS(sub)))
 	mux.HandleFunc("GET /api/state", s.handleState)
 	mux.HandleFunc("GET /api/status", s.handleStatus)
+	// pointer position from the calibration editor: forwarded straight to
+	// skyd, no state saved (called many times a second)
+	mux.HandleFunc("POST /api/cursor", func(w http.ResponseWriter, r *http.Request) {
+		var c struct{ X, Y float64 }
+		if json.NewDecoder(r.Body).Decode(&c) == nil {
+			skySend(fmt.Sprintf("set u_cursor %g %g", c.X, c.Y))
+		}
+		w.WriteHeader(http.StatusNoContent)
+	})
+	mux.HandleFunc("GET /ws", s.handleWS)
 	mux.HandleFunc("POST /api/{action}", s.handleAction)
 	return mux
 }
@@ -687,6 +878,14 @@ func (s *Server) handleAction(w http.ResponseWriter, r *http.Request) {
 		Snow    *float64       `json:"snow"`
 		Speed   *float64       `json:"speed"`
 		Santa   bool           `json:"santa"`
+		Corner  *Corner        `json:"corner"`
+		Moon    *MoonSettings  `json:"moon"`
+		Start   bool           `json:"start"`
+		Save    bool           `json:"save"`
+		Loop    *bool          `json:"loop"`
+		Stop    bool           `json:"stop"`
+		Pause   bool           `json:"pause"`
+		Cancel  bool           `json:"cancel"`
 	}
 	json.NewDecoder(r.Body).Decode(&body)
 	var err error
@@ -700,16 +899,115 @@ func (s *Server) handleAction(w http.ResponseWriter, r *http.Request) {
 			s.st.Live = *body.On
 		}
 	case "scene":
-		if body.Clip == "" || strings.ContainsAny(body.Clip, "/.") {
+		if body.Clip == "" || strings.ContainsAny(body.Clip, "/. ") {
 			err = errors.New("scene name required")
 			break
 		}
 		s.st.Scene, s.st.Live = body.Clip, true
-		s.procMu.Lock()
-		if s.skydCmd != nil && s.skydCmd.Process != nil {
-			s.skydCmd.Process.Signal(syscall.SIGTERM) // runSky restarts it with the new scene
+		if m, ok := map[string]string{"demo": "demo on", "demo2": "demo 2", "demo3": "demo 3", "demo4": "demo 4", "demoall": "demo all", "shuffle": "demo shuffle"}[body.Clip]; ok {
+			skySend(m)
+		} else if body.Clip == "top" {
+			if len(s.st.Top) == 0 {
+				err = errors.New("no top scenes chosen yet: tap a scene's ★")
+				break
+			}
+			skySend("demo list " + strings.Join(s.st.Top, ","))
+		} else {
+			skySend("scene " + body.Clip)
 		}
-		s.procMu.Unlock()
+	case "top":
+		// toggle a scene in the top list (max 12)
+		if body.Clip == "" || strings.ContainsAny(body.Clip, "/. ,") {
+			err = errors.New("scene name required")
+			break
+		}
+		at := -1
+		for i, n := range s.st.Top {
+			if n == body.Clip {
+				at = i
+			}
+		}
+		if at >= 0 {
+			s.st.Top = append(s.st.Top[:at:at], s.st.Top[at+1:]...)
+		} else if len(s.st.Top) >= 12 {
+			err = errors.New("the top list is full (12): remove one first")
+			break
+		} else {
+			s.st.Top = append(s.st.Top, body.Clip)
+		}
+		if s.st.Live && s.st.Scene == "top" && len(s.st.Top) > 0 {
+			skySend("demo list " + strings.Join(s.st.Top, ","))
+		}
+	case "video":
+		switch {
+		case body.Stop:
+			s.st.Video.Paused = false
+			skySend("video stop")
+		case body.Pause:
+			s.st.Video.Paused = !s.st.Video.Paused
+			if s.st.Video.Paused {
+				skySend("video pause")
+			} else {
+				skySend("video resume")
+			}
+		case body.Loop != nil && body.Clip == "":
+			s.st.Video.Loop = *body.Loop
+		default:
+			if _, ok := s.clipPath(body.Clip); !ok {
+				err = errors.New("no such video")
+				break
+			}
+			if s.st.Scene != "video" && s.st.Live {
+				s.st.Video.Return = s.st.Scene
+			}
+			s.st.Video.Clip, s.st.Video.Paused = body.Clip, false
+			if body.Loop != nil {
+				s.st.Video.Loop = *body.Loop
+			}
+			s.st.Scene, s.st.Live = "video", true
+			v := s.st.Video
+			go s.playVideo(v)
+		}
+	case "calib":
+		var msg string
+		switch {
+		case body.Start:
+			if s.st.Scene != "calib" {
+				s.st.PrevScene = s.st.Scene
+			}
+			s.st.Scene, s.st.Live = "calib", true
+			skySend("scene calib")
+			s.sendCalib(s.st.Corner)
+		case body.Cancel:
+			s.st.Scene = s.st.PrevScene
+			if s.st.Scene == "" || s.st.Scene == "calib" {
+				s.st.Scene = "demo"
+			}
+			if s.st.Scene == "demo" {
+				skySend("demo on")
+			} else {
+				skySend("scene " + s.st.Scene)
+			}
+		case body.Save:
+			if body.Corner != nil {
+				s.st.Corner = *body.Corner
+			}
+			c := s.st.Corner
+			s.mu.Unlock()
+			msg, err = s.saveCalib(c)
+			s.mu.Lock()
+			if err == nil {
+				s.st.Scene = s.st.PrevScene
+				if s.st.Scene == "" || s.st.Scene == "calib" {
+					s.st.Scene = "demo"
+				}
+				s.st.CalibMsg = msg
+			}
+		}
+		if body.Corner != nil && !body.Save {
+			s.st.Corner = *body.Corner
+			s.sendCalib(s.st.Corner)
+		}
 	case "sky":
 		if body.Snow != nil {
 			s.st.Snow = math.Max(0, math.Min(1, *body.Snow))
@@ -721,6 +1019,18 @@ func (s *Server) handleAction(w http.ResponseWriter, r *http.Request) {
 		}
 		if body.Santa {
 			skySend("santa")
+		}
+		if body.Moon != nil {
+			m := *body.Moon
+			m.Across = math.Max(0.05, math.Min(0.95, m.Across))
+			m.Down = math.Max(0.05, math.Min(0.95, m.Down))
+			m.Size = math.Max(0.02, math.Min(0.2, m.Size))
+			m.SantaY = math.Max(-3, math.Min(3, m.SantaY))
+			if m.Wall != "right" {
+				m.Wall = "left"
+			}
+			s.st.Moon = m
+			s.sendMoon(m)
 		}
 	case "play": // load a clip (or restart the current one) from the beginning
 		s.st.Live = false
@@ -853,7 +1163,9 @@ func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) {
 	s.procMu.Lock()
 	out["skyd"] = s.skydCmd != nil
 	s.procMu.Unlock()
-	out["adb"] = s.adbState()
+	adbCacheMu.Lock()
+	out["adb"] = adbCache
+	adbCacheMu.Unlock()
 	out["mpvRunning"] = len(mp) > 0
 	writeJSON(w, out)
 }

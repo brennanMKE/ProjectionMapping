@@ -3,130 +3,385 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>projector</title>
+<meta name="theme-color" content="#0b0d12">
+<title>Projector</title>
 <style>
-  :root { color-scheme: dark; --bg:#111; --panel:#1c1c1e; --line:#333; --fg:#eee; --dim:#999; --accent:#0a84ff; --warn:#ff9f0a; --bad:#ff453a; --ok:#30d158; }
+  :root {
+    color-scheme: dark;
+    --bg: #0b0d12; --panel: #151922; --panel2: #1c212c; --line: #2a3140; --fg: #e8ecf3; --dim: #8b95a7;
+    --accent: #4f8cff; --accent2: #7aa7ff; --warn: #ffb020; --bad: #ff5a5f; --ok: #3ddc84;
+    --r: 14px;
+  }
   * { box-sizing: border-box; }
-  body { margin:0; background:var(--bg); color:var(--fg); font:15px/1.4 -apple-system, system-ui, sans-serif; padding-bottom:40px; }
-  header { position:sticky; top:0; z-index:5; background:#000; padding:10px 12px; display:flex; gap:10px; align-items:center; border-bottom:1px solid var(--line); }
-  header h1 { font-size:17px; margin:0; flex:1; }
-  .dot { width:10px; height:10px; border-radius:50%; background:var(--bad); }
-  .dot.on { background:var(--ok); }
-  section { background:var(--panel); margin:10px; padding:12px; border-radius:10px; max-width:720px; }
-  @media (min-width: 760px) { section { margin:10px auto; } }
-  h2 { font-size:13px; text-transform:uppercase; letter-spacing:.05em; color:var(--dim); margin:0 0 10px; }
-  .row { display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-bottom:8px; }
-  .row:last-child { margin-bottom:0; }
-  button { font:inherit; color:var(--fg); background:#2c2c2e; border:1px solid var(--line); border-radius:8px; padding:10px 12px; min-height:44px; cursor:pointer; }
-  button:active { background:#3a3a3c; }
-  button.on { background:var(--warn); border-color:var(--warn); color:#000; }
-  button.primary { background:var(--accent); border-color:var(--accent); }
-  .grid4 { display:grid; grid-template-columns:repeat(4,1fr); gap:8px; }
-  .grid4 button { font-weight:600; }
-  .clips { display:flex; flex-direction:column; gap:6px; }
-  .clips button { text-align:left; }
-  .clips button.cur { outline:2px solid var(--accent); }
-  .clips small { color:var(--dim); }
-  #wrap { width:100%; background:#000; border:1px solid var(--line); border-radius:6px; touch-action:none; }
-  canvas { display:block; width:100%; touch-action:none; }
-  .pad { display:grid; grid-template-columns:repeat(3,52px); gap:6px; }
-  .pad button { padding:0; font-size:20px; }
-  .corners button { width:48px; font-weight:700; }
-  .corners button.sel { outline:2px solid #fff; }
-  .remote { display:flex; gap:16px; align-items:center; flex-wrap:wrap; margin:6px 0; }
-  .dpad { display:grid; grid-template-columns:repeat(3,64px); grid-template-rows:repeat(3,64px); gap:6px; }
-  .dpad button { padding:0; font-size:22px; border-radius:12px; }
-  .dpad .ok { border-radius:50%; font-weight:700; background:#3a3a3c; }
-  .side { display:flex; flex-direction:column; gap:10px; }
-  .side button { min-width:120px; min-height:56px; }
-  .kv { display:grid; grid-template-columns:max-content 1fr; gap:2px 12px; font:13px/1.5 ui-monospace, monospace; }
-  .kv div:nth-child(odd) { color:var(--dim); }
-  .hint { color:var(--dim); font-size:13px; margin:8px 0 0; }
-  #err { color:var(--bad); font-size:13px; min-height:1.2em; margin:0 12px; }
+  html, body { margin: 0; background: var(--bg); color: var(--fg); font: 15px/1.45 -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+  body { padding-bottom: calc(24px + env(safe-area-inset-bottom)); }
+  .wrap { max-width: 780px; margin: 0 auto; padding: 0 14px; }
+
+  header { position: sticky; top: 0; z-index: 10; background: rgba(11,13,18,0.88); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); border-bottom: 1px solid var(--line); padding-top: env(safe-area-inset-top); }
+  .bar { display: flex; align-items: center; gap: 12px; padding: 12px 0 10px; }
+  .logo { width: 30px; height: 30px; border-radius: 9px; background: linear-gradient(135deg, #4f8cff, #9b6bff); display: grid; place-items: center; font-size: 16px; }
+  .title { flex: 1; min-width: 0; }
+  .title h1 { margin: 0; font-size: 17px; font-weight: 650; letter-spacing: -0.01em; }
+  .title .sub { color: var(--dim); font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .pill { display: inline-flex; align-items: center; gap: 6px; padding: 5px 10px; border-radius: 999px; background: var(--panel2); border: 1px solid var(--line); font-size: 12.5px; color: var(--dim); white-space: nowrap; }
+  .pill i { width: 8px; height: 8px; border-radius: 50%; background: var(--bad); display: inline-block; }
+  .pill.on i { background: var(--ok); box-shadow: 0 0 8px var(--ok); }
+
+  nav.tabs { display: grid; grid-template-columns: repeat(6, 1fr); gap: 4px; padding: 4px; margin: 0 0 12px; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; }
+  nav.tabs button { border: 0; background: transparent; color: var(--dim); min-height: 40px; padding: 6px 4px; border-radius: 9px; font-weight: 600; font-size: 13.5px; line-height: 1.15; }
+  nav.tabs button span { display: block; font-size: 17px; margin-bottom: 2px; }
+  nav.tabs button.active { background: var(--panel2); color: var(--fg); box-shadow: 0 1px 0 rgba(255,255,255,0.04) inset, 0 2px 8px rgba(0,0,0,0.35); }
+  @media (min-width: 560px) { nav.tabs button span { display: inline; margin: 0 6px 0 0; font-size: 15px; } }
+
+  .tab { display: none; animation: fade .18s ease-out; }
+  .tab.active { display: block; }
+  @keyframes fade { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: var(--r); padding: 16px; margin: 0 0 14px; }
+  .card h2 { margin: 0 0 4px; font-size: 15px; font-weight: 650; }
+  .card .lead { margin: 0 0 14px; color: var(--dim); font-size: 13.5px; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 10px; }
+  .row:last-child { margin-bottom: 0; }
+
+  button { font: inherit; color: var(--fg); background: var(--panel2); border: 1px solid var(--line); border-radius: 10px; padding: 10px 14px; min-height: 44px; cursor: pointer; transition: background .12s, border-color .12s, transform .06s; }
+  button:hover { border-color: #3a4357; }
+  button:active { transform: scale(0.98); background: #262c39; }
+  button:disabled { opacity: .5; }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+  button.on { background: rgba(79,140,255,0.18); border-color: var(--accent); color: var(--accent2); }
+  button.warn.on { background: rgba(255,176,32,0.16); border-color: var(--warn); color: var(--warn); }
+  button.danger { color: var(--bad); }
+  .btn-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
+  .grid4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+
+  /* scene tiles */
+  .tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+  .tile { text-align: left; padding: 12px; min-height: 84px; display: flex; flex-direction: column; gap: 4px; border-radius: 12px; background: var(--panel2); }
+  .tile b { font-size: 14.5px; }
+  .tile small { color: var(--dim); font-size: 12px; line-height: 1.3; }
+  .tile .em { font-size: 20px; }
+  .tile.on { background: rgba(79,140,255,0.14); border-color: var(--accent); }
+  .tile.feature { grid-column: 1 / -1; min-height: 64px; flex-direction: row; align-items: center; gap: 12px; background: linear-gradient(135deg, rgba(79,140,255,0.22), rgba(155,107,255,0.18)); border-color: #3b4a72; }
+  .tile.feature.on { border-color: var(--accent2); }
+  .tile { position: relative; }
+  .star { position: absolute; top: 6px; right: 8px; font-size: 18px; color: #5a6275; padding: 2px 4px; line-height: 1; }
+  .star.on { color: #ffcc33; text-shadow: 0 0 8px rgba(255,204,51,.5); }
+  button.more { width: 100%; min-height: 56px; margin: 0 0 14px; font-weight: 650; font-size: 15px; border-radius: var(--r); background: var(--panel); }
+
+  /* sliders */
+  .slider { display: grid; grid-template-columns: 110px 1fr 52px; align-items: center; gap: 10px; margin: 6px 0; }
+  .slider label { color: var(--dim); font-size: 13.5px; }
+  .slider output { text-align: right; font-variant-numeric: tabular-nums; color: var(--fg); font-size: 13px; }
+  input[type=range] { -webkit-appearance: none; appearance: none; width: 100%; height: 28px; background: transparent; }
+  input[type=range]::-webkit-slider-runnable-track { height: 6px; border-radius: 3px; background: #2b3242; }
+  input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 22px; height: 22px; border-radius: 50%; background: #fff; margin-top: -8px; box-shadow: 0 1px 4px rgba(0,0,0,.5); }
+  input[type=range]::-moz-range-track { height: 6px; border-radius: 3px; background: #2b3242; }
+  input[type=range]::-moz-range-thumb { width: 22px; height: 22px; border-radius: 50%; background: #fff; border: 0; }
+  .seg { display: inline-flex; background: var(--panel2); border: 1px solid var(--line); border-radius: 10px; padding: 3px; gap: 3px; }
+  .seg button { border: 0; min-height: 34px; padding: 6px 14px; background: transparent; color: var(--dim); }
+  .seg button.on { background: var(--panel); color: var(--fg); box-shadow: 0 1px 4px rgba(0,0,0,.4); }
+
+  /* editors */
+  .stage { width: 100%; background: #000; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; touch-action: none; }
+  canvas { display: block; width: 100%; touch-action: none; }
+  .pad { display: grid; grid-template-columns: repeat(3, 52px); gap: 6px; }
+  .pad button { padding: 0; font-size: 20px; }
+  .pick { display: flex; gap: 6px; flex-wrap: wrap; }
+  .pick button { min-width: 52px; font-weight: 650; }
+  .pick button.sel { outline: 2px solid #fff; outline-offset: 1px; }
+  .swatch { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; vertical-align: 0; }
+  .editor-row { display: flex; gap: 16px; flex-wrap: wrap; align-items: flex-start; margin-top: 12px; }
+  .editor-row > .grow { flex: 1; min-width: 200px; }
+  ol.steps { margin: 0 0 12px; padding-left: 20px; color: var(--dim); font-size: 13.5px; }
+  ol.steps li { margin: 3px 0; }
+  ol.steps b { color: var(--fg); font-weight: 600; }
+
+  /* remote */
+  .remote { display: flex; gap: 18px; align-items: center; flex-wrap: wrap; }
+  .dpad { display: grid; grid-template-columns: repeat(3, 64px); grid-template-rows: repeat(3, 64px); gap: 6px; }
+  .dpad button { padding: 0; font-size: 20px; border-radius: 14px; }
+  .dpad .ok { border-radius: 50%; font-weight: 700; background: #262c39; }
+  .side { display: flex; flex-direction: column; gap: 10px; }
+  .side button { min-width: 130px; min-height: 54px; }
+
+  /* clips + status */
+  .clips { display: flex; flex-direction: column; gap: 6px; max-height: 360px; overflow: auto; }
+  .clips button { text-align: left; display: flex; justify-content: space-between; gap: 10px; }
+  .clips button.cur { border-color: var(--accent); background: rgba(79,140,255,0.10); }
+  .clips small { color: var(--dim); }
+  details summary { cursor: pointer; color: var(--fg); font-weight: 600; list-style: none; display: flex; align-items: center; gap: 8px; }
+  details summary::before { content: "▸"; color: var(--dim); transition: transform .15s; }
+  details[open] summary::before { transform: rotate(90deg); }
+  details > *:not(summary) { margin-top: 12px; }
+  .kv { display: grid; grid-template-columns: max-content 1fr; gap: 6px 16px; font-size: 13.5px; }
+  .kv div:nth-child(odd) { color: var(--dim); }
+  .kv div:nth-child(even) { font-variant-numeric: tabular-nums; }
+  .hint { color: var(--dim); font-size: 12.5px; margin: 10px 0 0; }
+  #err { color: var(--bad); font-size: 13px; min-height: 0; margin: 0 0 10px; }
+  #err:empty { display: none; }
+  .msg { color: var(--ok); font-size: 13px; margin-top: 10px; min-height: 1em; }
 </style>
 </head>
 <body>
-<header><div class="dot" id="dot"></div><h1 id="title">projector</h1><span id="now" style="color:var(--dim);font-size:13px"></span></header>
+<header>
+  <div class="wrap">
+    <div class="bar">
+      <div class="logo">◩</div>
+      <div class="title"><h1 id="title">Projector</h1><div class="sub" id="now">—</div></div>
+      <span class="pill" id="livePill"><i></i><span id="liveTxt">offline</span></span>
+    </div>
+    <nav class="tabs" id="tabs">
+      <button data-tab="projector"><span>📽</span>Projector</button>
+      <button data-tab="demos"><span>✨</span>Demos</button>
+      <button data-tab="sky"><span>🌙</span>Sky</button>
+      <button data-tab="video"><span>🎬</span>Video</button>
+      <button data-tab="corner"><span>📐</span>Corner</button>
+      <button data-tab="warp"><span>⬚</span>Warp</button>
+    </nav>
+  </div>
+</header>
+
+<main class="wrap">
 <p id="err"></p>
 
-<section>
-  <h2>Playback</h2>
-  <div class="grid4">
-    <button id="prev">◀︎ Prev</button>
-    <button id="restart" class="primary">Restart</button>
-    <button id="pause">Pause</button>
-    <button id="next">Next ▶︎</button>
-  </div>
-  <div class="row" style="margin-top:8px">
-    <button id="blackout">Blackout</button>
-    <button id="pattern">Alignment grid</button>
-  </div>
-</section>
-
-<section>
-  <h2>Live sky</h2>
-  <div class="row">
-    <button id="live" class="primary">Live sky: off</button>
-    <button id="santa">🎅 Santa fly-by</button>
-  </div>
-  <div class="row">
-    <button data-scene="sky">Night sky</button>
-    <button data-scene="cube">3D cube illusion</button>
-  </div>
-  <div class="row"><label for="snow" style="width:90px">Snow</label><input id="snow" type="range" min="0" max="1" step="0.05" style="flex:1"><span id="snowv" style="width:40px"></span></div>
-  <div class="row"><label for="speed" style="width:90px">Fall speed</label><input id="speed" type="range" min="0.2" max="3" step="0.1" style="flex:1"><span id="speedv" style="width:40px"></span></div>
-  <p class="hint">Rendered in real time on the Pi, corrected for the webcam's viewpoint. Playing a clip switches back to video.</p>
-</section>
-
-<section>
-  <h2>Projector</h2>
-  <div class="row">
-    <button id="hdmi" class="primary">Switch to HDMI</button>
-    <button data-key="sleep">Sleep</button>
-    <button data-key="wake">Wake</button>
-  </div>
-  <div class="remote">
-    <div class="dpad">
-      <span></span><button data-key="up" aria-label="Up">▲</button><span></span>
-      <button data-key="left" aria-label="Left">◀</button><button data-key="enter" class="ok">OK</button><button data-key="right" aria-label="Right">▶</button>
-      <span></span><button data-key="down" aria-label="Down">▼</button><span></span>
-    </div>
-    <div class="side">
-      <button data-key="home">⌂ Home</button>
-      <button data-key="back">↩ Back</button>
+<!-- ============================== PROJECTOR -->
+<section class="tab" id="tab-projector">
+  <div class="card">
+    <h2>Input & power</h2>
+    <p class="lead">Mizar controls the projector over Wi-Fi (ADB), with a USB keyboard as a fallback.</p>
+    <div class="row">
+      <button id="hdmi" class="primary">Switch to HDMI</button>
+      <button data-key="sleep">Sleep</button>
+      <button data-key="wake">Wake</button>
+      <button id="blackout" class="warn">Blackout</button>
     </div>
   </div>
-  <p class="hint">Mizar acts as a USB keyboard for the projector. "Switch to HDMI" opens the HDMI input directly over Wi-Fi (ADB) when available, otherwise walks the home screen to the HDMI tile (about 12 seconds).</p>
-</section>
-
-<section>
-  <h2>Clips</h2>
-  <div class="clips" id="clips"></div>
-</section>
-
-<section>
-  <h2>Warp corners</h2>
-  <div id="wrap"><canvas id="ed"></canvas></div>
-  <p class="hint">Drag a corner, or drag inside to move the whole picture. Turn on the alignment grid to see the numbered corners on the wall: 1 red, 2 green, 3 blue, 4 yellow.</p>
-  <div class="row corners" style="margin-top:8px" id="corners">
-    <button data-c="0">1</button><button data-c="1">2</button><button data-c="2">3</button><button data-c="3">4</button><button data-c="-1">all</button>
+  <div class="card">
+    <h2>Remote</h2>
+    <p class="lead">Navigate the projector's own menus.</p>
+    <div class="remote">
+      <div class="dpad">
+        <span></span><button data-key="up" aria-label="Up">▲</button><span></span>
+        <button data-key="left" aria-label="Left">◀</button><button data-key="enter" class="ok">OK</button><button data-key="right" aria-label="Right">▶</button>
+        <span></span><button data-key="down" aria-label="Down">▼</button><span></span>
+      </div>
+      <div class="side">
+        <button data-key="home">⌂ Home</button>
+        <button data-key="back">↩ Back</button>
+      </div>
+    </div>
   </div>
-  <div class="row">
-    <div class="pad">
-      <span></span><button data-d="0,-1">↑</button><span></span>
-      <button data-d="-1,0">←</button><button id="step">10</button><button data-d="1,0">→</button>
-      <span></span><button data-d="0,1">↓</button><span></span>
-    </div>
-    <div style="display:flex;flex-direction:column;gap:6px">
-      <button id="reset">Full screen</button>
-    </div>
+  <div class="card">
+    <h2>Status</h2>
+    <div class="kv" id="status" style="margin-top:10px"></div>
   </div>
 </section>
 
-<section>
-  <h2>Status</h2>
-  <div class="kv" id="status"></div>
+<!-- ============================== DEMOS -->
+<section class="tab" id="tab-demos">
+  <div class="card">
+    <h2>Top 12</h2>
+    <p class="lead">Your picks. Tap ★ on any scene to add or remove it.</p>
+    <div class="tiles" id="topTiles">
+      <button class="tile feature" data-scene="top"><span class="em">▶︎</span><span><b>Play top 12</b><br><small>Your picks in turn, forever</small></span></button>
+    </div>
+    <p class="hint" id="topHint"></p>
+  </div>
+  <button id="showMore" class="more">Show more scenes</button>
+  <div id="more" hidden>
+  <div class="card">
+    <h2>Live scenes</h2>
+    <p class="lead">Rendered in real time on the Pi and drawn for the viewer's position.</p>
+    <div class="tiles">
+      <button class="tile feature" data-scene="demo"><span class="em">▶︎</span><span><b>Demo loop 1</b><br><small>The scenes below in turn, about 3 minutes, forever</small></span></button>
+      <button class="tile" data-scene="cube"><span class="em">🧊</span><b>Cube break-out</b><small>A cube grows out of the corner</small></button>
+      <button class="tile" data-scene="scan"><span class="em">📡</span><b>Scanning planes</b><small>Light planes slice the room</small></button>
+      <button class="tile" data-scene="membrane"><span class="em">🫧</span><b>Membrane push</b><small>The walls bulge like fabric</small></button>
+      <button class="tile" data-scene="flip"><span class="em">🔲</span><b>Corner flip</b><small>Inside corner pops out</small></button>
+      <button class="tile" data-scene="window"><span class="em">🪟</span><b>Window</b><small>Portals into a deep space</small></button>
+      <button class="tile" data-scene="relief"><span class="em">🧱</span><b>Relief panels</b><small>Raised panels, moving light</small></button>
+      <button class="tile" data-scene="water"><span class="em">🌊</span><b>Water fill</b><small>The corner fills with water</small></button>
+      <button class="tile" data-scene="spin"><span class="em">🌀</span><b>Corner spin</b><small>Walls and ceiling trade places</small></button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Loop 2</h2>
+    <p class="lead">Ten more scenes: physics, light and depth tricks.</p>
+    <div class="tiles">
+      <button class="tile feature" data-scene="demo2"><span class="em">▶︎</span><span><b>Demo loop 2</b><br><small>These ten in turn, about 3.5 minutes, forever</small></span></button>
+      <button class="tile" data-scene="spotlight"><span class="em">🔦</span><b>Spotlight reveal</b><small>A beam uncovers hidden carvings</small></button>
+      <button class="tile" data-scene="xray"><span class="em">🩻</span><b>X-ray wall</b><small>Studs and conduit inside the walls</small></button>
+      <button class="tile" data-scene="balls"><span class="em">🔴</span><b>Bouncing balls</b><small>Balls drop onto ledges and roll off</small></button>
+      <button class="tile" data-scene="vortex"><span class="em">🕳</span><b>Vortex</b><small>The grid spirals into the corner</small></button>
+      <button class="tile" data-scene="pins"><span class="em">📌</span><b>Pin screen</b><small>Pins ripple out, a hand presses</small></button>
+      <button class="tile" data-scene="puzzle"><span class="em">🎲</span><b>Puzzle cube</b><small>A 3×3 cube scrambles and solves</small></button>
+      <button class="tile" data-scene="strings"><span class="em">🧵</span><b>String art</b><small>Taut threads form twisting surfaces</small></button>
+      <button class="tile" data-scene="metal"><span class="em">💧</span><b>Liquid metal</b><small>Chrome drips, pools and runs</small></button>
+      <button class="tile" data-scene="snowfall"><span class="em">❄️</span><b>Snowfall</b><small>Snow drifts and piles on ledges</small></button>
+      <button class="tile" data-scene="infinite"><span class="em">♾</span><b>Infinite corner</b><small>Corners inside corners, flying in</small></button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Loop 3</h2>
+    <p class="lead">Physics across all three faces.</p>
+    <div class="tiles">
+      <button class="tile feature" data-scene="demo3"><span class="em">▶︎</span><span><b>Demo loop 3</b><br><small>These five in turn, about 2 minutes, forever</small></span></button>
+      <button class="tile" data-scene="marble"><span class="em">🔵</span><b>Marble run</b><small>Ramps, a seam jump, a spiral tube</small></button>
+      <button class="tile" data-scene="breakout"><span class="em">🧱</span><b>Breakout</b><small>A ball clears bricks off all faces</small></button>
+      <button class="tile" data-scene="carousel"><span class="em">🎠</span><b>Gravity carousel</b><small>Each face takes a turn as the floor</small></button>
+      <button class="tile" data-scene="juggle"><span class="em">🌀</span><b>Portal juggle</b><small>Balls arc between portals</small></button>
+      <button class="tile" data-scene="crawlers"><span class="em">🐞</span><b>Crawlers</b><small>Bugs walk round the seams</small></button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Neon</h2>
+    <p class="lead">80s laser lines on all three faces, on the beat.</p>
+    <div class="tiles">
+      <button class="tile feature" data-scene="demo4"><span class="em">▶︎</span><span><b>Neon loop</b><br><small>These four in turn, forever</small></span></button>
+      <button class="tile" data-scene="neon_grid"><span class="em">🟦</span><b>Neon grid</b><small>Laser grid sweeps and light cycles</small></button>
+      <button class="tile" data-scene="wire_tunnel"><span class="em">🔷</span><b>Wire tunnel</b><small>Wireframe corners stream inward</small></button>
+      <button class="tile" data-scene="rotor_grid"><span class="em">📺</span><b>Rotor grid</b><small>A lurching, turning line lattice</small></button>
+      <button class="tile" data-scene="equalizer"><span class="em">🎚</span><b>Equalizer</b><small>LED bars climb onto the ceiling</small></button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Playlist</h2>
+    <div class="row">
+      <button data-scene="demoall">All loops</button>
+      <button data-scene="shuffle">Shuffle all</button>
+      <button id="live">Live scenes: off</button>
+    </div>
+  </div>
+
+  </div>
+
+  <div class="card">
+    <details>
+      <summary>Video clips</summary>
+      <div class="grid4">
+        <button id="prev">◀︎ Prev</button>
+        <button id="restart" class="primary">Play</button>
+        <button id="pause">Pause</button>
+        <button id="next">Next ▶︎</button>
+      </div>
+      <div class="clips" id="clips"></div>
+      <p class="hint">Playing a clip switches from live scenes to video.</p>
+    </details>
+  </div>
 </section>
+
+<!-- ============================== NIGHT SKY -->
+<section class="tab" id="tab-sky">
+  <div class="card">
+    <h2>Night sky</h2>
+    <p class="lead">Moon, stars and snow through the corner, with Santa flying by. Changes show live.</p>
+    <div class="row">
+      <button id="showSky" class="primary">🌙 Show night sky</button>
+      <button id="santa">🎅 Santa fly-by</button>
+    </div>
+    <div class="slider"><label for="snow">Snow</label><input id="snow" type="range" min="0" max="1" step="0.05"><output id="snowv"></output></div>
+    <div class="slider"><label for="speed">Fall speed</label><input id="speed" type="range" min="0.2" max="3" step="0.1"><output id="speedv"></output></div>
+    <div class="slider"><label>Moon wall</label><div class="seg"><button data-moonwall="left">Left</button><button data-moonwall="right">Right</button></div><span></span></div>
+    <div class="slider"><label for="moonAcross">Moon along</label><input id="moonAcross" type="range" min="0.05" max="0.95" step="0.01"><span></span></div>
+    <div class="slider"><label for="moonDown">Moon down</label><input id="moonDown" type="range" min="0.05" max="0.95" step="0.01"><span></span></div>
+    <div class="slider"><label for="moonSize">Moon size</label><input id="moonSize" type="range" min="0.03" max="0.15" step="0.005"><span></span></div>
+    <div class="slider"><label for="santaY">Santa height</label><input id="santaY" type="range" min="-3" max="3" step="0.1"><output id="santaYv"></output></div>
+    <p class="hint">Santa height 0 flies straight across the moon.</p>
+  </div>
+
+</section>
+
+<!-- ============================== VIDEO -->
+<section class="tab" id="tab-video">
+  <div class="card">
+    <h2>Video in the corner</h2>
+    <p class="lead">Plays on a screen floating in the middle of the corner, with sound through the projector.</p>
+    <div class="row">
+      <button id="vPause">Pause</button>
+      <button id="vStop" class="danger">Stop</button>
+      <button id="vLoop">Loop: off</button>
+    </div>
+    <p class="hint" id="vNow"></p>
+  </div>
+  <div class="card">
+    <h2>Videos on the Pi</h2>
+    <p class="lead">From the media folders. Copy files into <code>~/media</code> on the Pi to add more.</p>
+    <div class="clips" id="vclips"></div>
+  </div>
+</section>
+
+<!-- ============================== CORNER CALIBRATION -->
+<section class="tab" id="tab-corner">
+  <div class="card">
+    <h2>Corner calibration</h2>
+    <p class="lead">Tell the Pi where the corner is. Everything else is worked out from these four dots.</p>
+    <ol class="steps">
+      <li>Press <b>Start</b>. The projector shows four dots and their lines.</li>
+      <li>Put the <b>white</b> dot on the point where both walls meet the ceiling.</li>
+      <li>Slide <b style="color:#ff6b63">red</b> along the left wall/ceiling edge, <b style="color:#6f9bff">blue</b> along the right one, and <b style="color:#ffd84d">yellow</b> down the wall/wall edge, until each line covers its edge.</li>
+      <li>Press <b>Save</b>. Dots far from the corner give the best result.</li>
+    </ol>
+    <div class="row">
+      <button id="calStart" class="primary">Start</button>
+      <button id="calSave">Save</button>
+      <button id="calCancel">Cancel</button>
+    </div>
+    <div class="stage" id="calWrap"><canvas id="calEd"></canvas></div>
+    <p class="hint">Your pointer shows on the projection as a green crosshair while it's over this view.</p>
+    <div class="editor-row">
+      <div>
+        <div class="pick" id="calPick" style="margin-bottom:10px">
+          <button data-cp="vertex"><span class="swatch" style="background:#fff"></span>White</button>
+          <button data-cp="left"><span class="swatch" style="background:#ff5a4f"></span>Red</button>
+          <button data-cp="right"><span class="swatch" style="background:#5b8cff"></span>Blue</button>
+          <button data-cp="down"><span class="swatch" style="background:#ffd84d"></span>Yellow</button>
+        </div>
+        <div class="pad">
+          <span></span><button data-cd="0,-1">↑</button><span></span>
+          <button data-cd="-1,0">←</button><button id="calStep" title="step size">5</button><button data-cd="1,0">→</button>
+          <span></span><button data-cd="0,1">↓</button><span></span>
+        </div>
+      </div>
+      <div class="grow">
+        <div class="slider"><label for="calThrow">Lens (throw)</label><input id="calThrow" type="range" min="0.8" max="2.2" step="0.05"><output id="throwV"></output></div>
+        <div class="slider"><label for="calShift">Lens shift</label><input id="calShift" type="range" min="-0.5" max="0.5" step="0.05"><output id="shiftV"></output></div>
+        <p class="hint">Adjust the lens only if scenes look stretched after saving.</p>
+      </div>
+    </div>
+    <p class="msg" id="calMsg"></p>
+  </div>
+</section>
+
+<!-- ============================== WARP CALIBRATION -->
+<section class="tab" id="tab-warp">
+  <div class="card">
+    <h2>Warp calibration</h2>
+    <p class="lead">Corner-pin flat video onto a surface. Not needed for the live corner scenes, which use Corner calibration.</p>
+    <div class="row">
+      <button id="pattern">Alignment grid</button>
+      <button id="reset" class="danger">Reset to full screen</button>
+    </div>
+    <div class="stage" id="wrap"><canvas id="ed"></canvas></div>
+    <p class="hint">Drag a corner, or drag inside to move the whole picture. With the alignment grid on, the corners show on the wall as 1 red, 2 green, 3 blue, 4 yellow.</p>
+    <div class="editor-row">
+      <div>
+        <div class="pick" id="corners" style="margin-bottom:10px">
+          <button data-c="0">1</button><button data-c="1">2</button><button data-c="2">3</button><button data-c="3">4</button><button data-c="-1">All</button>
+        </div>
+        <div class="pad">
+          <span></span><button data-d="0,-1">↑</button><span></span>
+          <button data-d="-1,0">←</button><button id="step" title="step size">10</button><button data-d="1,0">→</button>
+          <span></span><button data-d="0,1">↓</button><span></span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+</main>
 
 <script>
 const $ = (s) => document.querySelector(s);
@@ -156,12 +411,159 @@ $('#pattern').onclick = () => api('pattern');
 $('#hdmi').onclick = async () => { $('#hdmi').disabled = true; await api('hdmi'); $('#hdmi').disabled = false; };
 $$('[data-key]').forEach((b) => b.onclick = () => api('key', { key: b.dataset.key }));
 $('#live').onclick = () => api('live');
-$$('[data-scene]').forEach((b) => b.onclick = () => api('scene', { clip: b.dataset.scene }));
+let moonT = null;
+function moonSend(extra) {
+  if (!S) return;
+  const m = Object.assign({}, S.state.moon, { across: +$('#moonAcross').value, down: +$('#moonDown').value, size: +$('#moonSize').value, santaY: +$('#santaY').value }, extra || {});
+  S.state.moon = m;
+  clearTimeout(moonT);
+  moonT = setTimeout(() => api('sky', { moon: m }), 80);
+}
+['#moonAcross', '#moonDown', '#moonSize', '#santaY'].forEach((id) => $(id).oninput = () => { $('#santaYv').textContent = (+$('#santaY').value).toFixed(1); moonSend(); });
+$$('[data-moonwall]').forEach((b) => b.onclick = () => moonSend({ wall: b.dataset.moonwall }));
+// scene tiles (also the copies in the Top 12 card) and their stars
+document.addEventListener('click', (e) => {
+  const star = e.target.closest('.star');
+  if (star) { e.stopPropagation(); api('top', { clip: star.dataset.star }); return; }
+  const b = e.target.closest('[data-scene]');
+  if (b) api('scene', { clip: b.dataset.scene });
+});
+// a star on every scene tile
+$$('#more .tile[data-scene]').forEach((b) => {
+  if (/^(demo|shuffle)/.test(b.dataset.scene)) return;
+  const s = document.createElement('span');
+  s.className = 'star'; s.textContent = '★'; s.dataset.star = b.dataset.scene; s.title = 'Top 12';
+  b.appendChild(s);
+});
+$('#showMore').onclick = () => { const m = $('#more'); m.hidden = !m.hidden; $('#showMore').textContent = m.hidden ? 'Show more scenes' : 'Show fewer'; };
 $('#santa').onclick = () => api('sky', { santa: true });
+$('#showSky').onclick = () => api('scene', { clip: 'sky' });
+$('#vPause').onclick = () => api('video', { pause: true });
+$('#vStop').onclick = () => api('video', { stop: true });
+$('#vLoop').onclick = () => api('video', { loop: !(S && S.state.video && S.state.video.loop) });
 let skyT = null;
 const skySet = () => { clearTimeout(skyT); skyT = setTimeout(() => api('sky', { snow: +$('#snow').value, speed: +$('#speed').value }), 120); };
 $('#snow').oninput = () => { $('#snowv').textContent = $('#snow').value; skySet(); };
 $('#speed').oninput = () => { $('#speedv').textContent = $('#speed').value + '×'; skySet(); };
+
+// ---- tabs (remembered per device, and in the URL)
+function showTab(name) {
+  if (!document.getElementById('tab-' + name)) name = 'demos';
+  $$('.tab').forEach((t) => t.classList.toggle('active', t.id === 'tab-' + name));
+  $$('#tabs [data-tab]').forEach((b) => b.classList.toggle('active', b.dataset.tab === name));
+  localStorage.setItem('tab', name);
+  if (location.hash !== '#' + name) history.replaceState(null, '', '#' + name);
+  requestAnimationFrame(() => { if (S) render(); });
+  if (name === 'corner') wsOpen();
+  else if (ws) hideCursor();
+}
+$$('#tabs [data-tab]').forEach((b) => b.onclick = () => showTab(b.dataset.tab));
+// ---- corner calibration
+const cal = $('#calEd'), cctx = cal.getContext('2d');
+const CAL_COL = { vertex: '#ffffff', left: '#ff5a4f', right: '#5b8cff', down: '#ffd84d' };
+let calSel = 'vertex', calStep = 5, calDrag = null, calT = null;
+function calC() { return S && S.state.corner; }
+function calSend(extra) {
+  clearTimeout(calT);
+  calT = setTimeout(() => api('calib', Object.assign({ corner: calC() }, extra || {})), 50);
+}
+$('#calStart').onclick = () => api('calib', { start: true });
+$('#calCancel').onclick = () => api('calib', { cancel: true });
+$('#calSave').onclick = async () => { $('#calMsg').textContent = 'Saving…'; await api('calib', { save: true, corner: calC() }); $('#calMsg').textContent = S && S.state.calibMsg && !$('#err').textContent ? '✓ Saved: ' + S.state.calibMsg : ''; };
+$('#calThrow').oninput = () => { calC().throw = +$('#calThrow').value; $('#throwV').textContent = $('#calThrow').value; calSend(); };
+$('#calShift').oninput = () => { calC().shiftY = +$('#calShift').value; $('#shiftV').textContent = $('#calShift').value; calSend(); };
+$$('#calPick [data-cp]').forEach((b) => b.onclick = () => { calSel = b.dataset.cp; drawCal(); });
+$('#calStep').onclick = () => { calStep = calStep === 5 ? 1 : calStep === 1 ? 20 : 5; $('#calStep').textContent = calStep; };
+$$('[data-cd]').forEach((b) => b.onclick = () => {
+  const c = calC(); if (!c) return;
+  const [dx, dy] = b.dataset.cd.split(',').map(Number);
+  c[calSel][0] = Math.max(0, Math.min(1279, c[calSel][0] + dx * calStep));
+  c[calSel][1] = Math.max(0, Math.min(719, c[calSel][1] + dy * calStep));
+  drawCal(); sendDot(calSel, c[calSel]); sendCursor(c[calSel][0], c[calSel][1]);
+});
+function calPos(e, r) { return [((e.clientX - r.left) / r.width) * 1280, ((e.clientY - r.top) / r.height) * 720]; }
+cal.addEventListener('pointerdown', (e) => {
+  const c = calC(); if (!c) return;
+  const r = cal.getBoundingClientRect(), p = calPos(e, r), R = 40 * (1280 / r.width);
+  let best = null, bd = R;
+  for (const k of ['vertex', 'left', 'right', 'down']) {
+    const d = Math.hypot(c[k][0] - p[0], c[k][1] - p[1]);
+    if (d < bd) { bd = d; best = k; }
+  }
+  if (best) { calSel = best; calDrag = { r, off: [c[best][0] - p[0], c[best][1] - p[1]] }; cal.setPointerCapture(e.pointerId); drawCal(); }
+});
+cal.addEventListener('pointermove', (e) => {
+  if (!calDrag) return;
+  const c = calC(), p = calPos(e, calDrag.r);
+  c[calSel] = [Math.round(Math.max(0, Math.min(1279, p[0] + calDrag.off[0]))), Math.round(Math.max(0, Math.min(719, p[1] + calDrag.off[1])))];
+  drawCal(); sendDot(calSel, c[calSel]); sendCursor(c[calSel][0], c[calSel][1]);
+});
+// ---- low-latency channel (WebSocket) for the pointer and dot moves.
+// Flow control by acknowledgement: send the newest positions as one batch,
+// then wait for the Pi's "a" before sending again. Positions that change in
+// the meantime simply overwrite each other, so only the latest is ever sent.
+let ws = null, wsPend = {}, wsInFlight = false, wsSentAt = 0;
+function wsOpen() {
+  if (ws && ws.readyState <= 1) return;
+  ws = new WebSocket((location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws');
+  ws.onopen = () => { wsInFlight = false; wsLast = {}; wsPump(); };
+  ws.onmessage = (e) => { if (e.data === 'a') { wsInFlight = false; wsRTT = performance.now() - wsSentAt; wsPump(); } };
+  ws.onclose = () => { ws = null; wsInFlight = false; setTimeout(() => { if ($('#tab-corner').classList.contains('active')) wsOpen(); }, 1000); };
+}
+let wsRTT = 0;
+function wsPump() {
+  if (!ws || ws.readyState !== 1) { wsOpen(); return; }
+  // a lost ack shouldn't stall the editor forever
+  if (wsInFlight && performance.now() - wsSentAt < 1000) return;
+  const keys = Object.keys(wsPend);
+  if (!keys.length) return;
+  ws.send(keys.map((k) => wsPend[k]).join('\n'));
+  for (const k of keys) wsLast[k] = wsPend[k];
+  wsPend = {};
+  wsInFlight = true;
+  wsSentAt = performance.now();
+}
+// skip a value identical to the last one sent (or already waiting) for that key
+let wsLast = {};
+function wsSend(key, msg) {
+  if (wsPend[key] === undefined && wsLast[key] === msg) return;
+  if (wsPend[key] === msg) return;
+  wsPend[key] = msg;
+  wsPump();
+}
+function sendCursor(x, y) { wsSend('c', `c ${Math.round(x)} ${Math.round(y)}`); }
+function sendDot(name, p) { wsSend('p' + name, `p ${name} ${p[0]} ${p[1]}`); }
+cal.addEventListener('pointermove', (e) => { if (!calDrag) { const p = calPos(e, cal.getBoundingClientRect()); sendCursor(p[0], p[1]); } });
+// out of view: hide the crosshair once, then send nothing until the pointer returns
+const hideCursor = () => sendCursor(-1000, -1000);
+cal.addEventListener('pointerleave', hideCursor);
+document.addEventListener('visibilitychange', () => { if (document.hidden) hideCursor(); });
+const calEnd = () => { if (calDrag) { calDrag = null; } };   // the server keeps the dots; saved in the background
+cal.addEventListener('pointerup', calEnd);
+cal.addEventListener('pointercancel', calEnd);
+function drawCal() {
+  const c = calC(); const W = cal.parentElement.clientWidth, H = Math.round(W * 720 / 1280), dpr = devicePixelRatio || 1;
+  if (!W) return;
+  if (cal.width !== Math.round(W * dpr)) { cal.width = Math.round(W * dpr); cal.height = Math.round(H * dpr); cal.style.height = H + 'px'; }
+  const k = cal.width / 1280;
+  cctx.fillStyle = '#000'; cctx.fillRect(0, 0, cal.width, cal.height);
+  if (!c) return;
+  const V = c.vertex.map((v) => v * k);
+  for (const key of ['left', 'right', 'down']) {
+    const P = c[key].map((v) => v * k), dx = P[0] - V[0], dy = P[1] - V[1], L = Math.hypot(dx, dy) || 1;
+    cctx.strokeStyle = CAL_COL[key]; cctx.lineWidth = 2 * dpr;
+    cctx.beginPath(); cctx.moveTo(V[0], V[1]); cctx.lineTo(V[0] + dx / L * 3000, V[1] + dy / L * 3000); cctx.stroke();
+  }
+  for (const key of ['left', 'right', 'down', 'vertex']) {
+    const P = c[key].map((v) => v * k);
+    cctx.beginPath(); cctx.arc(P[0], P[1], (key === calSel ? 11 : 8) * dpr, 0, Math.PI * 2);
+    cctx.fillStyle = CAL_COL[key]; cctx.fill();
+    if (key === calSel) { cctx.strokeStyle = '#fff'; cctx.lineWidth = 2 * dpr; cctx.stroke(); }
+  }
+  $$('#calPick [data-cp]').forEach((b) => b.classList.toggle('sel', b.dataset.cp === calSel));
+}
+window.addEventListener('resize', drawCal);
+
 $('#reset').onclick = () => { if (confirm('Reset the warp to the full screen?')) api('reset'); };
 
 // ---- corner editor
@@ -218,6 +620,7 @@ $$('.pad [data-d]').forEach((b) => b.onclick = () => {
 
 function draw() {
   const s = scr(), W = cv.parentElement.clientWidth, H = Math.round(W * s.h / s.w), dpr = devicePixelRatio || 1;
+  if (!W) return;
   if (cv.width !== Math.round(W * dpr)) { cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr); cv.style.height = H + 'px'; }
   const k = cv.width / s.w;
   ctx.fillStyle = '#000'; ctx.fillRect(0, 0, cv.width, cv.height);
@@ -246,8 +649,36 @@ window.addEventListener('resize', draw);
 function render() {
   if (!S) return;
   const st = S.state;
-  $('#live').textContent = 'Live sky: ' + (st.live ? 'ON' : 'off');
+  if (st.corner && !calDrag) {
+    if (document.activeElement !== $('#calThrow')) { $('#calThrow').value = st.corner.throw; $('#throwV').textContent = st.corner.throw; }
+    if (document.activeElement !== $('#calShift')) { $('#calShift').value = st.corner.shiftY || 0; $('#shiftV').textContent = st.corner.shiftY || 0; }
+    $('#calStart').classList.toggle('on', st.live && st.scene === 'calib');
+    $('#calStart').textContent = st.live && st.scene === 'calib' ? 'Calibrating…' : 'Start';
+    drawCal();
+  }
+  if (st.moon) {
+    for (const [id, key] of [['#moonAcross', 'across'], ['#moonDown', 'down'], ['#moonSize', 'size'], ['#santaY', 'santaY']])
+      if (document.activeElement !== $(id)) $(id).value = st.moon[key];
+    $('#santaYv').textContent = (+st.moon.santaY).toFixed(1);
+    $$('[data-moonwall]').forEach((b) => b.classList.toggle('on', b.dataset.moonwall === st.moon.wall));
+  }
+  $('#live').textContent = st.live ? 'Live scenes: ON (tap to stop)' : 'Live scenes: off';
   $('#live').classList.toggle('on', st.live);
+  const onSky = st.live && st.scene === 'sky';
+  $('#showSky').textContent = onSky ? '🌙 Showing night sky' : '🌙 Show night sky';
+  $('#showSky').classList.toggle('on', onSky);
+  $('#showSky').classList.toggle('primary', !onSky);
+  // Top 12: copies of the chosen tiles
+  const top = st.top || [];
+  for (const old of $$('#topTiles .tile[data-copy]')) old.parentNode.removeChild(old);
+  for (const name of top) {
+    const src = $(`#more .tile[data-scene="${name}"]`);
+    if (!src) continue;
+    const c = src.cloneNode(true); c.dataset.copy = '1';
+    $('#topTiles').appendChild(c);
+  }
+  $('#topHint').textContent = top.length ? `${top.length} of 12 chosen.` : 'Nothing chosen yet. Open "Show more scenes" and tap ★ on the ones you like.';
+  $$('.star').forEach((s) => s.classList.toggle('on', top.includes(s.dataset.star)));
   $$('[data-scene]').forEach((b) => b.classList.toggle('on', st.live && (st.scene || 'sky') === b.dataset.scene));
   if (document.activeElement !== $('#snow')) { $('#snow').value = st.snow || 0; $('#snowv').textContent = $('#snow').value; }
   if (document.activeElement !== $('#speed')) { $('#speed').value = st.speed || 1; $('#speedv').textContent = $('#speed').value + '×'; }
@@ -257,28 +688,48 @@ function render() {
   $('#pattern').classList.toggle('on', st.pattern);
   $('#step').textContent = step;
   $$('#corners [data-c]').forEach((b) => b.classList.toggle('sel', Number(b.dataset.c) === sel));
+  const v = st.video || {}, onVid = st.live && st.scene === 'video';
+  $('#vPause').textContent = v.paused ? 'Resume' : 'Pause';
+  $('#vPause').classList.toggle('on', !!v.paused);
+  $('#vLoop').textContent = 'Loop: ' + (v.loop ? 'on' : 'off');
+  $('#vLoop').classList.toggle('on', !!v.loop);
+  $('#vNow').textContent = onVid && v.clip ? 'Playing: ' + v.clip.split('/').pop() : 'Nothing playing in the corner.';
+  const vb = $('#vclips');
+  vb.innerHTML = '';
+  for (const c of S.clips.filter((c) => c.kind === 'video')) {
+    const b = document.createElement('button');
+    b.innerHTML = `<span>▶︎ ${c.name.split('/').pop()}</span><small>${c.name.split('/')[0]}</small>`;
+    b.classList.toggle('cur', onVid && c.name === v.clip);
+    b.onclick = () => api('video', { clip: c.name });
+    vb.appendChild(b);
+  }
   const box = $('#clips');
   box.innerHTML = '';
   for (const c of S.clips) {
     const b = document.createElement('button');
-    b.innerHTML = `${c.name.split('/').pop()} <small>${c.name.split('/')[0]} · ${c.kind}</small>`;
-    b.classList.toggle('cur', c.name === st.clip);
+    b.innerHTML = `<span>${c.name.split('/').pop()}</span><small>${c.name.split('/')[0]} · ${c.kind}</small>`;
+    b.classList.toggle('cur', !st.live && c.name === st.clip);
     b.onclick = () => api('play', { clip: c.name });
     box.appendChild(b);
   }
   if (!S.clips.length) box.textContent = 'No clips found in the media folders.';
-  $('#now').textContent = (st.clip || '').split('/').pop();
+  const names = { demo: 'Demo loop', sky: 'Night sky', cube: 'Cube break-out', scan: 'Scanning planes', membrane: 'Membrane push', flip: 'Corner flip', window: 'Window', relief: 'Relief panels', water: 'Water fill', spin: 'Corner spin', calib: 'Corner calibration', video: 'Video', demo2: 'Demo loop 2', demo3: 'Demo loop 3', demo4: 'Neon loop', top: 'Top 12', neon_grid: 'Neon grid', wire_tunnel: 'Wire tunnel', rotor_grid: 'Rotor grid', equalizer: 'Equalizer', demoall: 'All loops', marble: 'Marble run', breakout: 'Breakout', carousel: 'Gravity carousel', juggle: 'Portal juggle', crawlers: 'Crawlers', shuffle: 'Shuffle',
+    spotlight: 'Spotlight reveal', xray: 'X-ray wall', balls: 'Bouncing balls', vortex: 'Vortex', pins: 'Pin screen', puzzle: 'Puzzle cube',
+    strings: 'String art', metal: 'Liquid metal', snowfall: 'Snowfall', infinite: 'Infinite corner' };
+  $('#now').textContent = st.live ? 'Live · ' + (names[st.scene || 'sky'] || st.scene) : 'Video · ' + (st.clip || '').split('/').pop();
   draw();
 }
 
 async function status() {
   try {
     const s = await (await fetch('/api/status')).json();
-    $('#dot').classList.toggle('on', !!s.mpvRunning);
-    $('#title').textContent = s.host || 'projector';
+    const up = !!s.mpvRunning || !!s.skyd;
+    $('#livePill').classList.toggle('on', up);
+    $('#liveTxt').textContent = s.skyd ? 'live' : (s.mpvRunning ? 'video' : 'stopped');
+    $('#title').textContent = s.host ? s.host.charAt(0).toUpperCase() + s.host.slice(1) : 'Projector';
     const m = s.mpv || {};
     const rows = [
-      ['Player', s.mpvRunning ? (m.pause ? 'paused' : 'playing') : 'NOT RUNNING'],
+      ['Output', s.skyd ? 'live scenes' : (s.mpvRunning ? (m.pause ? 'video, paused' : 'video') : 'stopped')],
       ['Clip', m.filename || '—'],
       ['Position', m['time-pos'] != null ? `${m['time-pos'].toFixed(1)} / ${(m.duration || 0).toFixed(1)} s` : '—'],
       ['Decoder', m['hwdec-current'] || 'software'],
@@ -292,8 +743,10 @@ async function status() {
     ];
     const el = $('#status'); el.innerHTML = '';
     rows.forEach(([k, v]) => { const a = document.createElement('div'); a.textContent = k; const b = document.createElement('div'); b.textContent = v; el.append(a, b); });
-  } catch { $('#dot').classList.remove('on'); }
+  } catch { $('#livePill').classList.remove('on'); $('#liveTxt').textContent = 'offline'; }
 }
+// restore the last tab only now, after everything it may use is defined
+showTab((location.hash || '').slice(1) || localStorage.getItem('tab') || 'demos');
 loadState();
 status();
 setInterval(status, 2000);
