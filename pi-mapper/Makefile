@@ -5,6 +5,8 @@
 #   make check  PI=pi-a.local       print OS / Chromium / compositor / decoder facts
 #   make stats  PI=pi-a.local       record 10 min of CPU/temp on the Pi
 #   make logs   PI=pi-a.local       follow mapd's journal
+#   make corner [CORNER=corner/corner.json]        render the corner test clips into media/corner
+#   make corner-quick [CORNER=corner/corner.json]  4 s calibrate clip only
 # PI is any ssh target (host, user@host, or an ~/.ssh/config alias).
 
 PI         ?=
@@ -12,8 +14,9 @@ REMOTE_DIR ?= pi-mapper
 ROLE       ?=
 LEADER     ?=
 BIN        := build/mapd
+CORNER     ?= $(if $(wildcard corner/corner.json),corner/corner.json,corner/corner.example.json)
 
-.PHONY: build run vet test-clips deploy setup check stats logs drift require-pi
+.PHONY: build run vet test-clips corner corner-quick deploy setup check stats logs drift require-pi
 
 build:
 	GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o $(BIN) ./cmd/mapd
@@ -26,6 +29,12 @@ vet:
 
 test-clips:
 	scripts/make-test-clips.sh
+
+corner:
+	go run ./cmd/cornergen -config $(CORNER) -out media/corner
+
+corner-quick:
+	go run ./cmd/cornergen -config $(CORNER) -out media/corner -only measure,calibrate -seconds 4
 
 require-pi:
 	@test -n "$(PI)" || { echo "set PI=<host>, e.g. make $(MAKECMDGOALS) PI=pi-a.local"; exit 1; }

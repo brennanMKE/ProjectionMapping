@@ -1,0 +1,276 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>projector</title>
+<style>
+  :root { color-scheme: dark; --bg:#111; --panel:#1c1c1e; --line:#333; --fg:#eee; --dim:#999; --accent:#0a84ff; --warn:#ff9f0a; --bad:#ff453a; --ok:#30d158; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg); font:15px/1.4 -apple-system, system-ui, sans-serif; padding-bottom:40px; }
+  header { position:sticky; top:0; z-index:5; background:#000; padding:10px 12px; display:flex; gap:10px; align-items:center; border-bottom:1px solid var(--line); }
+  header h1 { font-size:17px; margin:0; flex:1; }
+  .dot { width:10px; height:10px; border-radius:50%; background:var(--bad); }
+  .dot.on { background:var(--ok); }
+  section { background:var(--panel); margin:10px; padding:12px; border-radius:10px; max-width:720px; }
+  @media (min-width: 760px) { section { margin:10px auto; } }
+  h2 { font-size:13px; text-transform:uppercase; letter-spacing:.05em; color:var(--dim); margin:0 0 10px; }
+  .row { display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-bottom:8px; }
+  .row:last-child { margin-bottom:0; }
+  button { font:inherit; color:var(--fg); background:#2c2c2e; border:1px solid var(--line); border-radius:8px; padding:10px 12px; min-height:44px; cursor:pointer; }
+  button:active { background:#3a3a3c; }
+  button.on { background:var(--warn); border-color:var(--warn); color:#000; }
+  button.primary { background:var(--accent); border-color:var(--accent); }
+  .grid4 { display:grid; grid-template-columns:repeat(4,1fr); gap:8px; }
+  .grid4 button { font-weight:600; }
+  .clips { display:flex; flex-direction:column; gap:6px; }
+  .clips button { text-align:left; }
+  .clips button.cur { outline:2px solid var(--accent); }
+  .clips small { color:var(--dim); }
+  #wrap { width:100%; background:#000; border:1px solid var(--line); border-radius:6px; touch-action:none; }
+  canvas { display:block; width:100%; touch-action:none; }
+  .pad { display:grid; grid-template-columns:repeat(3,52px); gap:6px; }
+  .pad button { padding:0; font-size:20px; }
+  .corners button { width:48px; font-weight:700; }
+  .corners button.sel { outline:2px solid #fff; }
+  .remote { display:flex; gap:16px; align-items:center; flex-wrap:wrap; margin:6px 0; }
+  .dpad { display:grid; grid-template-columns:repeat(3,64px); grid-template-rows:repeat(3,64px); gap:6px; }
+  .dpad button { padding:0; font-size:22px; border-radius:12px; }
+  .dpad .ok { border-radius:50%; font-weight:700; background:#3a3a3c; }
+  .side { display:flex; flex-direction:column; gap:10px; }
+  .side button { min-width:120px; min-height:56px; }
+  .kv { display:grid; grid-template-columns:max-content 1fr; gap:2px 12px; font:13px/1.5 ui-monospace, monospace; }
+  .kv div:nth-child(odd) { color:var(--dim); }
+  .hint { color:var(--dim); font-size:13px; margin:8px 0 0; }
+  #err { color:var(--bad); font-size:13px; min-height:1.2em; margin:0 12px; }
+</style>
+</head>
+<body>
+<header><div class="dot" id="dot"></div><h1 id="title">projector</h1><span id="now" style="color:var(--dim);font-size:13px"></span></header>
+<p id="err"></p>
+
+<section>
+  <h2>Playback</h2>
+  <div class="grid4">
+    <button id="prev">◀︎ Prev</button>
+    <button id="restart" class="primary">Restart</button>
+    <button id="pause">Pause</button>
+    <button id="next">Next ▶︎</button>
+  </div>
+  <div class="row" style="margin-top:8px">
+    <button id="blackout">Blackout</button>
+    <button id="pattern">Alignment grid</button>
+  </div>
+</section>
+
+<section>
+  <h2>Projector</h2>
+  <div class="row">
+    <button id="hdmi" class="primary">Switch to HDMI</button>
+    <button data-key="sleep">Sleep</button>
+    <button data-key="wake">Wake</button>
+  </div>
+  <div class="remote">
+    <div class="dpad">
+      <span></span><button data-key="up" aria-label="Up">▲</button><span></span>
+      <button data-key="left" aria-label="Left">◀</button><button data-key="enter" class="ok">OK</button><button data-key="right" aria-label="Right">▶</button>
+      <span></span><button data-key="down" aria-label="Down">▼</button><span></span>
+    </div>
+    <div class="side">
+      <button data-key="home">⌂ Home</button>
+      <button data-key="back">↩ Back</button>
+    </div>
+  </div>
+  <p class="hint">Mizar acts as a USB keyboard for the projector. "Switch to HDMI" opens the HDMI input directly over Wi-Fi (ADB) when available, otherwise walks the home screen to the HDMI tile (about 12 seconds).</p>
+</section>
+
+<section>
+  <h2>Clips</h2>
+  <div class="clips" id="clips"></div>
+</section>
+
+<section>
+  <h2>Warp corners</h2>
+  <div id="wrap"><canvas id="ed"></canvas></div>
+  <p class="hint">Drag a corner, or drag inside to move the whole picture. Turn on the alignment grid to see the numbered corners on the wall: 1 red, 2 green, 3 blue, 4 yellow.</p>
+  <div class="row corners" style="margin-top:8px" id="corners">
+    <button data-c="0">1</button><button data-c="1">2</button><button data-c="2">3</button><button data-c="3">4</button><button data-c="-1">all</button>
+  </div>
+  <div class="row">
+    <div class="pad">
+      <span></span><button data-d="0,-1">↑</button><span></span>
+      <button data-d="-1,0">←</button><button id="step">10</button><button data-d="1,0">→</button>
+      <span></span><button data-d="0,1">↓</button><span></span>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:6px">
+      <button id="reset">Full screen</button>
+    </div>
+  </div>
+</section>
+
+<section>
+  <h2>Status</h2>
+  <div class="kv" id="status"></div>
+</section>
+
+<script>
+const $ = (s) => document.querySelector(s);
+const $$ = (s) => [...document.querySelectorAll(s)];
+let S = null;          // last /api/state
+let sel = 0, step = 10, drag = null;
+
+async function api(action, body) {
+  try {
+    const r = await fetch('/api/' + action, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body || {}) });
+    if (!r.ok) throw new Error(await r.text());
+    S = await r.json();
+    $('#err').textContent = '';
+    if (!drag) render();
+  } catch (e) { $('#err').textContent = e.message; }
+}
+async function loadState() {
+  try { S = await (await fetch('/api/state')).json(); render(); } catch (e) { $('#err').textContent = 'cannot reach projd'; }
+}
+
+$('#prev').onclick = () => api('prev');
+$('#next').onclick = () => api('next');
+$('#restart').onclick = () => api('play');
+$('#pause').onclick = () => api('pause');
+$('#blackout').onclick = () => api('blackout');
+$('#pattern').onclick = () => api('pattern');
+$('#hdmi').onclick = async () => { $('#hdmi').disabled = true; await api('hdmi'); $('#hdmi').disabled = false; };
+$$('[data-key]').forEach((b) => b.onclick = () => api('key', { key: b.dataset.key }));
+$('#reset').onclick = () => { if (confirm('Reset the warp to the full screen?')) api('reset'); };
+
+// ---- corner editor
+const cv = $('#ed'), ctx = cv.getContext('2d');
+const COL = ['#ff3b30', '#34c759', '#0a84ff', '#ffcc00'];
+function scr() { return S ? { w: S.screen[0], h: S.screen[1] } : { w: 1280, h: 720 }; }
+function toScr(e, r) { const s = scr(); return [((e.clientX - r.left) / r.width) * s.w, ((e.clientY - r.top) / r.height) * s.h]; }
+function inQuad(p, q) {
+  let inside = false;
+  for (let i = 0, j = 3; i < 4; j = i++) {
+    const [xi, yi] = q[i], [xj, yj] = q[j];
+    if ((yi > p[1]) !== (yj > p[1]) && p[0] < ((xj - xi) * (p[1] - yi)) / (yj - yi) + xi) inside = !inside;
+  }
+  return inside;
+}
+let sendT = null;
+function sendCorners(now) {
+  clearTimeout(sendT);
+  const go = () => api('corners', { corners: S.state.corners });
+  if (now) go(); else sendT = setTimeout(go, 60);
+}
+cv.addEventListener('pointerdown', (e) => {
+  if (!S) return;
+  const r = cv.getBoundingClientRect(), p = toScr(e, r), c = S.state.corners;
+  const R = 30 * (scr().w / r.width);
+  const i = c.findIndex(([x, y]) => Math.hypot(x - p[0], y - p[1]) < R);
+  if (i >= 0) { sel = i; drag = { kind: 'corner', i, last: p, r }; }
+  else if (inQuad(p, c)) drag = { kind: 'move', last: p, r };
+  if (drag) cv.setPointerCapture(e.pointerId);
+  render();
+});
+cv.addEventListener('pointermove', (e) => {
+  if (!drag) return;
+  const p = toScr(e, drag.r), dx = p[0] - drag.last[0], dy = p[1] - drag.last[1];
+  drag.last = p;
+  const c = S.state.corners;
+  (drag.kind === 'corner' ? [c[drag.i]] : c).forEach((pt) => { pt[0] = Math.round((pt[0] + dx) * 2) / 2; pt[1] = Math.round((pt[1] + dy) * 2) / 2; });
+  draw();
+  sendCorners(false);
+});
+const end = () => { if (drag) { drag = null; sendCorners(true); } };
+cv.addEventListener('pointerup', end);
+cv.addEventListener('pointercancel', end);
+
+$$('#corners [data-c]').forEach((b) => b.onclick = () => { sel = Number(b.dataset.c); render(); });
+$('#step').onclick = () => { step = step === 10 ? 1 : step === 1 ? 50 : 10; render(); };
+$$('.pad [data-d]').forEach((b) => b.onclick = () => {
+  if (!S) return;
+  const [dx, dy] = b.dataset.d.split(',').map(Number), c = S.state.corners;
+  (sel < 0 ? c : [c[sel]]).forEach((pt) => { pt[0] += dx * step; pt[1] += dy * step; });
+  draw();
+  sendCorners(false);
+});
+
+function draw() {
+  const s = scr(), W = cv.parentElement.clientWidth, H = Math.round(W * s.h / s.w), dpr = devicePixelRatio || 1;
+  if (cv.width !== Math.round(W * dpr)) { cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr); cv.style.height = H + 'px'; }
+  const k = cv.width / s.w;
+  ctx.fillStyle = '#000'; ctx.fillRect(0, 0, cv.width, cv.height);
+  ctx.strokeStyle = '#2a2a2a'; ctx.lineWidth = 1;
+  for (let i = 1; i < 8; i++) {
+    ctx.beginPath(); ctx.moveTo(i * cv.width / 8, 0); ctx.lineTo(i * cv.width / 8, cv.height); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0, i * cv.height / 8); ctx.lineTo(cv.width, i * cv.height / 8); ctx.stroke();
+  }
+  if (!S) return;
+  const q = S.state.corners.map(([x, y]) => [x * k, y * k]);
+  ctx.beginPath(); q.forEach(([x, y], i) => i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)); ctx.closePath();
+  ctx.fillStyle = 'rgba(10,132,255,0.22)'; ctx.fill();
+  ctx.strokeStyle = '#0a84ff'; ctx.lineWidth = 2 * dpr; ctx.stroke();
+  ctx.font = `bold ${12 * dpr}px sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  q.forEach(([x, y], i) => {
+    ctx.beginPath(); ctx.arc(x, y, (sel === i || sel < 0 ? 12 : 9) * dpr, 0, Math.PI * 2);
+    ctx.fillStyle = COL[i]; ctx.fill();
+    if (sel === i || sel < 0) { ctx.strokeStyle = '#fff'; ctx.lineWidth = 2 * dpr; ctx.stroke(); }
+    ctx.fillStyle = '#000'; ctx.fillText(String(i + 1), x, y);
+  });
+  ctx.fillStyle = '#666'; ctx.textAlign = 'left'; ctx.font = `${11 * dpr}px sans-serif`;
+  ctx.fillText(`${s.w}×${s.h}`, 6 * dpr, 12 * dpr);
+}
+window.addEventListener('resize', draw);
+
+function render() {
+  if (!S) return;
+  const st = S.state;
+  $('#pause').textContent = st.paused ? 'Play' : 'Pause';
+  $('#pause').classList.toggle('on', st.paused);
+  $('#blackout').classList.toggle('on', st.blackout);
+  $('#pattern').classList.toggle('on', st.pattern);
+  $('#step').textContent = step;
+  $$('#corners [data-c]').forEach((b) => b.classList.toggle('sel', Number(b.dataset.c) === sel));
+  const box = $('#clips');
+  box.innerHTML = '';
+  for (const c of S.clips) {
+    const b = document.createElement('button');
+    b.innerHTML = `${c.name.split('/').pop()} <small>${c.name.split('/')[0]} · ${c.kind}</small>`;
+    b.classList.toggle('cur', c.name === st.clip);
+    b.onclick = () => api('play', { clip: c.name });
+    box.appendChild(b);
+  }
+  if (!S.clips.length) box.textContent = 'No clips found in the media folders.';
+  $('#now').textContent = (st.clip || '').split('/').pop();
+  draw();
+}
+
+async function status() {
+  try {
+    const s = await (await fetch('/api/status')).json();
+    $('#dot').classList.toggle('on', !!s.mpvRunning);
+    $('#title').textContent = s.host || 'projector';
+    const m = s.mpv || {};
+    const rows = [
+      ['Player', s.mpvRunning ? (m.pause ? 'paused' : 'playing') : 'NOT RUNNING'],
+      ['Clip', m.filename || '—'],
+      ['Position', m['time-pos'] != null ? `${m['time-pos'].toFixed(1)} / ${(m.duration || 0).toFixed(1)} s` : '—'],
+      ['Decoder', m['hwdec-current'] || 'software'],
+      ['Frame rate', m['estimated-vf-fps'] != null ? m['estimated-vf-fps'].toFixed(1) + ' fps' : '—'],
+      ['Dropped', `${m['frame-drop-count'] ?? '—'} (decoder ${m['decoder-frame-drop-count'] ?? '—'})`],
+      ['CPU temp', s.tempC != null ? s.tempC + ' °C' : '—'],
+      ['Load', s.load ?? '—'],
+      ['Throttled', s.throttled ?? '—'],
+      ['Projector USB', s.usb === 'configured' ? 'connected' : (s.usb || '—')],
+      ['Projector ADB', s.adb === 'device' ? 'connected' : (s.adb || '—')],
+    ];
+    const el = $('#status'); el.innerHTML = '';
+    rows.forEach(([k, v]) => { const a = document.createElement('div'); a.textContent = k; const b = document.createElement('div'); b.textContent = v; el.append(a, b); });
+  } catch { $('#dot').classList.remove('on'); }
+}
+loadState();
+status();
+setInterval(status, 2000);
+setInterval(() => { if (!drag) loadState(); }, 5000);
+</script>
+</body>
+</html>

@@ -1,0 +1,12 @@
+[Unit]
+Description=USB HID gadget: Pi as keyboard/remote for the projector
+After=sys-kernel-config.mount
+ConditionPathIsDirectory=/sys/class/udc
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/local/bin/hid-gadget.sh
+
+[Install]
+WantedBy=multi-user.target

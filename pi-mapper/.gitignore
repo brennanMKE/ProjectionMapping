@@ -8,3 +8,7 @@ media/*
 layouts/*
 !layouts/example.json
 .DS_Store
+/android/projlight/out/
+
+# camsnap helper build output
+/tools/camsnap/build/

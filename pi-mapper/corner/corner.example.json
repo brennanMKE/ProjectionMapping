@@ -1,0 +1,14 @@
+{
+  "width": 1280,
+  "height": 720,
+  "fps": 30,
+  "seconds": 20,
+  "throw": 1.3,
+  "distance": 3.0,
+  "vertex": [640, 302],
+  "down":   [640, 720],
+  "left":   [276, 92],
+  "right":  [1004, 92],
+  "supersample": 2,
+  "crf": 20
+}

@@ -1,0 +1,66 @@
+#!/bin/bash
+# camsnap [out.jpg] [camera-substring]
+# Grabs a fresh webcam frame from the CamSnap agent (launching it if needed).
+#
+# Env: CAMSNAP_PORT (8999), CAMSNAP_WIDTH (1280), CAMSNAP_APP (path to .app),
+#      CAMSNAP_PERMISSION_WAIT (seconds to wait for the permission prompt, 120)
+set -uo pipefail
+
+OUT="${1:-camsnap.jpg}"
+CAMERA="${2:-}"
+PORT="${CAMSNAP_PORT:-8999}"
+WIDTH="${CAMSNAP_WIDTH:-1280}"
+WAIT="${CAMSNAP_PERMISSION_WAIT:-120}"
+HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+APP="${CAMSNAP_APP:-$HERE/build/CamSnap.app}"
+BASE="http://127.0.0.1:$PORT"
+
+die() { echo "camsnap: $*" >&2; exit "${2:-1}"; }
+status() { curl -s -m 2 "$BASE/status" 2>/dev/null; }
+auth_of() { sed -n 's/.*"auth":"\([A-Za-z]*\)".*/\1/p'; }
+
+if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
+  sed -n '2,6p' "$0" | sed 's/^# \{0,1\}//'; exit 0
+fi
+
+S="$(status)"
+if [[ -z "$S" ]]; then
+  [[ -d "$APP" ]] || die "app not found at $APP (run build.sh first)"
+  [[ -n "${CAMSNAP_PORT:-}" ]] && export CAMSNAP_PORT
+  open -g "$APP" || die "could not launch $APP"
+  for _ in $(seq 1 50); do
+    S="$(status)"; [[ -n "$S" ]] && break
+    sleep 0.2
+  done
+  [[ -n "$S" ]] || die "CamSnap did not start listening on 127.0.0.1:$PORT"
+fi
+
+AUTH="$(auth_of <<<"$S")"
+if [[ "$AUTH" == "notDetermined" ]]; then
+  echo "camsnap: waiting up to ${WAIT}s for camera permission:" \
+       "click Allow on the \"CamSnap would like to access the camera\" prompt." >&2
+  END=$((SECONDS + WAIT))
+  while [[ "$AUTH" == "notDetermined" && $SECONDS -lt $END ]]; do
+    sleep 1
+    AUTH="$(status | auth_of)"
+  done
+fi
+case "$AUTH" in
+  authorized) ;;
+  notDetermined) die "camera permission still not granted after ${WAIT}s" 3 ;;
+  denied|restricted)
+    die "camera permission $AUTH for CamSnap. Enable it in System Settings > Privacy & Security > Camera, then run: curl -s $BASE/quit" 3 ;;
+  *) die "unexpected status from CamSnap: $S" ;;
+esac
+
+TMP="$(mktemp "${OUT}.XXXXXX")" || die "cannot write next to $OUT"
+trap 'rm -f "$TMP"' EXIT
+CODE="$(curl -s -m 8 -o "$TMP" -w '%{http_code}' --get \
+  --data-urlencode "camera=$CAMERA" --data-urlencode "w=$WIDTH" "$BASE/snap.jpg")"
+if [[ "$CODE" != "200" ]]; then
+  MSG="$(head -c 300 "$TMP" 2>/dev/null)"
+  [[ "$CODE" == "403" ]] && die "${MSG:-camera permission denied}" 3
+  die "snap failed (HTTP ${CODE:-none}): ${MSG:-no response}"
+fi
+chmod 644 "$TMP"; mv "$TMP" "$OUT" && trap - EXIT
+echo "$OUT"

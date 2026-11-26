@@ -1,0 +1,13 @@
+[Unit]
+Description=projd: projector player (mpv on HDMI) with web control
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=pi
+ExecStart=/usr/local/bin/projd -addr :8080 -screen 1280x720 -media /home/pi/corner-cal,/home/pi/media,/home/pi/corner
+Restart=always
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target
