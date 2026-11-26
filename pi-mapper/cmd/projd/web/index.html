@@ -64,6 +64,21 @@
 </section>
 
 <section>
+  <h2>Live sky</h2>
+  <div class="row">
+    <button id="live" class="primary">Live sky: off</button>
+    <button id="santa">🎅 Santa fly-by</button>
+  </div>
+  <div class="row">
+    <button data-scene="sky">Night sky</button>
+    <button data-scene="cube">3D cube illusion</button>
+  </div>
+  <div class="row"><label for="snow" style="width:90px">Snow</label><input id="snow" type="range" min="0" max="1" step="0.05" style="flex:1"><span id="snowv" style="width:40px"></span></div>
+  <div class="row"><label for="speed" style="width:90px">Fall speed</label><input id="speed" type="range" min="0.2" max="3" step="0.1" style="flex:1"><span id="speedv" style="width:40px"></span></div>
+  <p class="hint">Rendered in real time on the Pi, corrected for the webcam's viewpoint. Playing a clip switches back to video.</p>
+</section>
+
+<section>
   <h2>Projector</h2>
   <div class="row">
     <button id="hdmi" class="primary">Switch to HDMI</button>
@@ -140,6 +155,13 @@ $('#blackout').onclick = () => api('blackout');
 $('#pattern').onclick = () => api('pattern');
 $('#hdmi').onclick = async () => { $('#hdmi').disabled = true; await api('hdmi'); $('#hdmi').disabled = false; };
 $$('[data-key]').forEach((b) => b.onclick = () => api('key', { key: b.dataset.key }));
+$('#live').onclick = () => api('live');
+$$('[data-scene]').forEach((b) => b.onclick = () => api('scene', { clip: b.dataset.scene }));
+$('#santa').onclick = () => api('sky', { santa: true });
+let skyT = null;
+const skySet = () => { clearTimeout(skyT); skyT = setTimeout(() => api('sky', { snow: +$('#snow').value, speed: +$('#speed').value }), 120); };
+$('#snow').oninput = () => { $('#snowv').textContent = $('#snow').value; skySet(); };
+$('#speed').oninput = () => { $('#speedv').textContent = $('#speed').value + '×'; skySet(); };
 $('#reset').onclick = () => { if (confirm('Reset the warp to the full screen?')) api('reset'); };
 
 // ---- corner editor
@@ -224,6 +246,11 @@ window.addEventListener('resize', draw);
 function render() {
   if (!S) return;
   const st = S.state;
+  $('#live').textContent = 'Live sky: ' + (st.live ? 'ON' : 'off');
+  $('#live').classList.toggle('on', st.live);
+  $$('[data-scene]').forEach((b) => b.classList.toggle('on', st.live && (st.scene || 'sky') === b.dataset.scene));
+  if (document.activeElement !== $('#snow')) { $('#snow').value = st.snow || 0; $('#snowv').textContent = $('#snow').value; }
+  if (document.activeElement !== $('#speed')) { $('#speed').value = st.speed || 1; $('#speedv').textContent = $('#speed').value + '×'; }
   $('#pause').textContent = st.paused ? 'Play' : 'Pause';
   $('#pause').classList.toggle('on', st.paused);
   $('#blackout').classList.toggle('on', st.blackout);

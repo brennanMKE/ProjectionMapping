@@ -21,6 +21,7 @@ import (
 	"io/fs"
 	"log"
 	"math"
+	"net"
 	"net/http"
 	"os"
 	"os/exec"
@@ -52,6 +53,10 @@ type Config struct {
 	// ADB over Wi-Fi to the projector (needs USB debugging enabled on it).
 	// Empty = find it via mDNS (_adb._tcp).
 	ADB string
+	// Real-time renderer (skyd) and its data directory (mesh.bin, rect.json,
+	// sky.frag, sleigh.raw).
+	Skyd    string
+	SkydDir string
 }
 
 // State is what survives restarts.
@@ -60,12 +65,20 @@ type State struct {
 	Clip     string        `json:"clip"`
 	Paused   bool          `json:"paused"`
 	Blackout bool          `json:"blackout"`
+	Live     bool          `json:"live"`  // real-time sky (skyd) instead of mpv
+	Snow     float64       `json:"snow"`  // 0..1
+	Speed    float64       `json:"speed"` // snowfall speed multiplier
+	Scene    string        `json:"scene"` // live scene: shader name in the skyd dir (sky, cube)
 	Pattern  bool          `json:"pattern"`
 }
 
 type Server struct {
 	cfg Config
 	mpv *Mpv
+
+	procMu  sync.Mutex
+	mpvUp   bool      // an mpv process is running
+	skydCmd *exec.Cmd // running skyd, if any
 
 	mu    sync.Mutex
 	st    State
@@ -85,6 +98,8 @@ func main() {
 	state := flag.String("state", filepath.Join(home, ".config", "projd", "state.json"), "state file")
 	hwdec := flag.String("hwdec", "v4l2m2m-copy", "mpv --hwdec value")
 	connector := flag.String("connector", "HDMI-A-1", "DRM connector")
+	skyd := flag.String("skyd", "/usr/local/bin/skyd", "real-time sky renderer")
+	skydDir := flag.String("skyd-dir", filepath.Join(home, "skyd"), "skyd data directory")
 	adbAddr := flag.String("adb", "", "projector ADB address host[:port] (default: discover via mDNS)")
 	noMpv := flag.Bool("no-mpv", false, "don't start mpv (UI development on a laptop)")
 	projkey := flag.String("projkey", "/usr/local/bin/projkey", "key-press tool for the projector (USB HID gadget)")
@@ -110,6 +125,8 @@ func main() {
 		HDMIKeys:   strings.Fields(*hdmiKeys),
 		HDMIOnBoot: *hdmiOnBoot,
 		ADB:        *adbAddr,
+		Skyd:       *skyd,
+		SkydDir:    *skydDir,
 	}
 	for _, d := range strings.Split(*media, ",") {
 		if d = strings.TrimSpace(d); d != "" {
@@ -130,6 +147,7 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	if !cfg.NoMpv {
+		go s.runSky(ctx)
 		go s.runMpv(ctx)
 		go s.watchDisplay(ctx)
 	}
@@ -154,7 +172,7 @@ func main() {
 // ---------------------------------------------------------------- state
 
 func (s *Server) load() {
-	s.st = State{Corners: fullScreen(s.cfg.W, s.cfg.H)}
+	s.st = State{Corners: fullScreen(s.cfg.W, s.cfg.H), Speed: 1}
 	b, err := os.ReadFile(s.cfg.StateFile)
 	if err == nil {
 		if err := json.Unmarshal(b, &s.st); err != nil {
@@ -237,6 +255,10 @@ func (s *Server) clipPath(name string) (string, bool) {
 
 func (s *Server) runMpv(ctx context.Context) {
 	for ctx.Err() == nil {
+		if s.isLive() {
+			time.Sleep(500 * time.Millisecond)
+			continue
+		}
 		os.Remove(s.cfg.Socket)
 		cmd := exec.CommandContext(ctx, "mpv", s.cfg.MpvArgs...)
 		cmd.Stdout, cmd.Stderr = os.Stdout, os.Stderr
@@ -254,8 +276,17 @@ func (s *Server) runMpv(ctx context.Context) {
 				}
 				log.Printf("mpv: IPC socket never came up")
 			}()
+			s.procMu.Lock()
+			s.mpvUp = true
+			s.procMu.Unlock()
 			err := cmd.Wait()
+			s.procMu.Lock()
+			s.mpvUp = false
+			s.procMu.Unlock()
 			log.Printf("mpv exited: %v", err)
+			if s.isLive() {
+				continue // handing the display to skyd
+			}
 		}
 		select {
 		case <-ctx.Done():
@@ -308,6 +339,84 @@ func (s *Server) restore() {
 	s.mpv.Set("pause", paused)
 	s.applyVideo()
 	log.Printf("mpv: restored clip %q", clip)
+}
+
+func (s *Server) isLive() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.st.Live
+}
+
+// runSky starts skyd when Live is on (after mpv has released the display) and
+// stops it when Live is turned off.
+func (s *Server) runSky(ctx context.Context) {
+	for ctx.Err() == nil {
+		live := s.isLive()
+		s.procMu.Lock()
+		running, mpvUp := s.skydCmd != nil, s.mpvUp
+		s.procMu.Unlock()
+		switch {
+		case live && !running && !mpvUp:
+			s.mu.Lock()
+			snow, speed := s.st.Snow, s.st.Speed
+			s.mu.Unlock()
+			d := s.cfg.SkydDir
+			s.mu.Lock()
+			scene := s.st.Scene
+			s.mu.Unlock()
+			if scene == "" {
+				scene = "sky"
+			}
+			cmd := exec.Command(s.cfg.Skyd, filepath.Join(d, "mesh.bin"), filepath.Join(d, "rect.json"),
+				filepath.Join(d, scene+".frag"), filepath.Join(d, "sleigh.raw"))
+			cmd.Env = append(os.Environ(), fmt.Sprintf("SKYD_SNOW=%g", snow), fmt.Sprintf("SKYD_SPEED=%g", speed),
+				"SKYD_UNIFORMS="+filepath.Join(d, "uniforms.txt"))
+			if scene == "cube" {
+				cmd.Env = append(cmd.Env, "SKYD_SCALE=0.5") // ray tracing: render at half size
+			}
+			cmd.Stdout, cmd.Stderr = os.Stdout, os.Stderr
+			if err := cmd.Start(); err != nil {
+				log.Printf("skyd: %v", err)
+				time.Sleep(5 * time.Second)
+				continue
+			}
+			s.procMu.Lock()
+			s.skydCmd = cmd
+			s.procMu.Unlock()
+			log.Printf("skyd: started")
+			go func() {
+				err := cmd.Wait()
+				log.Printf("skyd exited: %v", err)
+				s.procMu.Lock()
+				s.skydCmd = nil
+				s.procMu.Unlock()
+			}()
+		case live && mpvUp:
+			s.mpv.Cmd("quit") // release the display for skyd
+		case !live && running:
+			s.procMu.Lock()
+			if s.skydCmd != nil && s.skydCmd.Process != nil {
+				s.skydCmd.Process.Signal(syscall.SIGTERM)
+			}
+			s.procMu.Unlock()
+		}
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(400 * time.Millisecond):
+		}
+	}
+}
+
+// skySend sends a control command to skyd (UDP 127.0.0.1:8766).
+func skySend(cmd string) error {
+	c, err := net.Dial("udp", "127.0.0.1:8766")
+	if err != nil {
+		return err
+	}
+	defer c.Close()
+	_, err = c.Write([]byte(cmd))
+	return err
 }
 
 // applyVideo sets mpv's filter chain (alignment grid, corner pin) and the
@@ -575,6 +684,9 @@ func (s *Server) handleAction(w http.ResponseWriter, r *http.Request) {
 		On      *bool          `json:"on"`
 		Corners *[4][2]float64 `json:"corners"`
 		Key     string         `json:"key"`
+		Snow    *float64       `json:"snow"`
+		Speed   *float64       `json:"speed"`
+		Santa   bool           `json:"santa"`
 	}
 	json.NewDecoder(r.Body).Decode(&body)
 	var err error
@@ -582,7 +694,36 @@ func (s *Server) handleAction(w http.ResponseWriter, r *http.Request) {
 
 	s.mu.Lock()
 	switch r.PathValue("action") {
+	case "live":
+		s.st.Live = !s.st.Live
+		if body.On != nil {
+			s.st.Live = *body.On
+		}
+	case "scene":
+		if body.Clip == "" || strings.ContainsAny(body.Clip, "/.") {
+			err = errors.New("scene name required")
+			break
+		}
+		s.st.Scene, s.st.Live = body.Clip, true
+		s.procMu.Lock()
+		if s.skydCmd != nil && s.skydCmd.Process != nil {
+			s.skydCmd.Process.Signal(syscall.SIGTERM) // runSky restarts it with the new scene
+		}
+		s.procMu.Unlock()
+	case "sky":
+		if body.Snow != nil {
+			s.st.Snow = math.Max(0, math.Min(1, *body.Snow))
+			skySend(fmt.Sprintf("snow %g", s.st.Snow))
+		}
+		if body.Speed != nil {
+			s.st.Speed = math.Max(0.1, math.Min(5, *body.Speed))
+			skySend(fmt.Sprintf("speed %g", s.st.Speed))
+		}
+		if body.Santa {
+			skySend("santa")
+		}
 	case "play": // load a clip (or restart the current one) from the beginning
+		s.st.Live = false
 		if body.Clip != "" {
 			s.st.Clip = body.Clip
 		}
@@ -606,6 +747,7 @@ func (s *Server) handleAction(w http.ResponseWriter, r *http.Request) {
 		err = s.mpv.Set("pause", p)
 		s.mu.Lock()
 	case "next", "prev":
+		s.st.Live = false
 		clips := s.clips()
 		idx := 0
 		for i, c := range clips {
@@ -708,6 +850,9 @@ func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) {
 	}
 	out["mpv"] = mp
 	out["usb"] = usbState()
+	s.procMu.Lock()
+	out["skyd"] = s.skydCmd != nil
+	s.procMu.Unlock()
 	out["adb"] = s.adbState()
 	out["mpvRunning"] = len(mp) > 0
 	writeJSON(w, out)
