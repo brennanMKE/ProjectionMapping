@@ -182,11 +182,21 @@ so drift can grow across loops. If it does, the next step is nudging
 ## Layout of this repo
 
 ```
-cmd/mapd/     Go server: main.go (config), hub.go (WebSocket + cues),
-              peer.go (follower→leader link), store.go (layouts), routes.go (HTTP, status)
-web/          index.html (projector), control.html, js/ (app, control, link, sketches, patterns, maptastic)
-media/        clips (gitignored except test.mp4)
-layouts/      saved layouts (gitignored except example.json)
-scripts/      setup-pi.sh, kiosk.sh, encode.sh, make-test-clips.sh, record-stats.sh, check-pi.sh
-../docs/     project documentation (ofxPiMapper runbook in guides/)
+cmd/projd/      Headless control server and tabbed web UI (corner calibration, scenes, video)
+skyd/           Live renderer (skyd.c, sims.c) and the scene shaders (*.frag, common.glsl)
+corner/         Corner geometry: test clips (cmd/cornergen) and structured-light calibration
+headless/       USB keyboard gadget (projkey, hid-gadget.sh), projector probe, cornerpin.py
+deploy/         systemd units (projd, hid-gadget)
+tools/          camsnap (webcam frames on macOS), preview (WebGL scene preview)
+android/        projlight: unbuilt Android app for the projector's light source
+cmd/mapd/       Pi 5 browser mapper server: main.go (config), hub.go (WebSocket + cues),
+                peer.go (follower→leader link), store.go (layouts), routes.go (HTTP, status)
+web/            Pi 5 mapper pages: index.html (projector), control.html, js/
+media/          clips (gitignored except test.mp4)
+layouts/        saved layouts (gitignored except example.json)
+scripts/        setup-pi.sh, kiosk.sh, encode.sh, make-test-clips.sh, record-stats.sh, check-pi.sh
 ```
+
+Documentation lives in [`../docs/`](../docs/): one page per demo, guides
+(including the [ofxPiMapper runbook](../docs/guides/ofxpimapper_pi5.md)), the
+projector's hardware findings, and the original briefs.
