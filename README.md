@@ -8,9 +8,9 @@ with Santa crossing the moon. Everything is controlled from a phone or laptop.
 
 ## Demo
 
-[![Corner projection demo](pi-mapper/docs/images/santa-moon.jpg)](VIDEO_URL)
+[![Projection mapping demo video](pi-mapper/docs/images/video-thumbnail.jpg)](https://youtu.be/vNaMZKivIM8)
 
-**[Watch the demo on YouTube](VIDEO_URL)**: every scene, recorded in a dark room.
+**[Watch the demo on YouTube](https://youtu.be/vNaMZKivIM8)**: every scene, recorded in a dark room.
 
 ## How it works
 
