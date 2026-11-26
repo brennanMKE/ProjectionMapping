@@ -508,7 +508,7 @@ func (s *Server) runSky(ctx context.Context) {
 
 // skydScenes lists the live scenes in demo-loop order: name:seconds[:scale]
 // (scale 0.5 renders at half resolution, for the ray-traced scenes).
-// name:seconds:scale:loop. Loop 2 (corner-illusions-demo-2.md) in its show order.
+// name:seconds:scale:loop. Loop 2 (docs/demos/) in its show order.
 const skydScenes = "calib:0,video:0,scan:15,membrane:15:0.5,cube:24:0.5,flip:15,window:20:0.5,relief:15:0.5,water:20:0.5,spin:15:0.5,sky:25:0.5," +
 	"spotlight:15:0.5:2,xray:20:0.5:2,balls:20:0.5:2,vortex:15:0.5:2,pins:20:0.5:2,puzzle:20:0.5:2,strings:20:0.5:2,metal:20:0.5:2,snowfall:25:0.5:2,infinite:15:0.5:2," +
 	"marble:30:0.4:3,breakout:25:0.35:3,carousel:25:0.35:3,juggle:20:0.5:3,crawlers:20:0.4:3," +

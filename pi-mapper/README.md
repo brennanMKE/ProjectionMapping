@@ -188,5 +188,5 @@ web/          index.html (projector), control.html, js/ (app, control, link, ske
 media/        clips (gitignored except test.mp4)
 layouts/      saved layouts (gitignored except example.json)
 scripts/      setup-pi.sh, kiosk.sh, encode.sh, make-test-clips.sh, record-stats.sh, check-pi.sh
-docs/         ofxpimapper-pi5.md (Track B)
+../docs/     project documentation (ofxPiMapper runbook in guides/)
 ```

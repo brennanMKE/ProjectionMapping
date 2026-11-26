@@ -1,0 +1,34 @@
+<!doctype html><html><head><meta charset="utf-8"><title>scene preview</title></head><body style="margin:0;background:#000"><canvas id="c" width="640" height="360"></canvas><pre id="log" style="color:#f66"></pre>
+<script>
+// Renders a skyd scene from the viewer's (camera) view in WebGL1 (the same
+// GLSL ES 1.00 as the Pi): run('water', 5) draws the 'water' scene at 5 s.
+// Serve the pi-mapper folder (python3 -m http.server 8777) and open
+// http://127.0.0.1:8777/tools/preview/preview.html?scene=water&t=5
+// Uses uniforms.txt (copy ~/skyd/uniforms.txt from the Pi) if present,
+// otherwise uniforms.example.txt. Per-frame state that skyd computes on the
+// CPU (sims.c) can be passed as `extra`: run('carousel', 5, {'u_obj[0]': [x, y, z, r]}).
+async function run(scene, time, extra) {
+  const base = '../../skyd/';
+  const common = await (await fetch(base + 'common.glsl')).text();
+  const frag = await (await fetch(base + scene + '.frag')).text();
+  let ur = await fetch('uniforms.txt');
+  if (!ur.ok) ur = await fetch('uniforms.example.txt');
+  const uni = await ur.text();
+  const gl = document.getElementById('c').getContext('webgl');
+  // the viewer's view: projector pixel = camera pixel
+  const vr = await fetch(base + scene + '.vert');
+  const vs = vr.ok ? await vr.text() : 'attribute vec2 a_proj; attribute vec2 a_cam; uniform vec2 u_res; varying vec2 v_cam; void main(){ v_cam = a_cam; vec2 ndc = a_proj / u_res * 2.0 - 1.0; gl_Position = vec4(ndc.x, -ndc.y, 0.0, 1.0); }';
+  const fs = (frag.includes('@common') ? common + '\n' : '') + frag;
+  function sh(t, src) { const s = gl.createShader(t); gl.shaderSource(s, src); gl.compileShader(s); if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(s)); return s; }
+  const p = gl.createProgram(); gl.attachShader(p, sh(gl.VERTEX_SHADER, vs)); gl.attachShader(p, sh(gl.FRAGMENT_SHADER, fs)); gl.bindAttribLocation(p, 0, 'a_proj'); gl.bindAttribLocation(p, 1, 'a_cam'); gl.linkProgram(p); gl.useProgram(p);
+  const set = (name, v) => { const l = gl.getUniformLocation(p, name); if (!l) return; if (v.length === 1) gl.uniform1f(l, v[0]); else if (v.length === 2) gl.uniform2f(l, ...v); else if (v.length === 3) gl.uniform3f(l, ...v); else if (v.length === 4) gl.uniform4f(l, ...v); else if (v.length === 9) gl.uniformMatrix3fv(l, false, [v[0], v[3], v[6], v[1], v[4], v[7], v[2], v[5], v[8]]); };
+  for (const line of uni.split('\n')) { const f = line.trim().split(/\s+/); if (!f[0] || f[0][0] === '#') continue; set(f[0], f.slice(1).map(Number)); }
+  set('u_time', [time]); set('u_res', [1280, 720]);
+  for (const k in (extra || {})) set(k, extra[k]);
+  const b = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, b); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([0,720,1280,720,0,0,1280,0]), gl.STATIC_DRAW);
+  gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0); gl.enableVertexAttribArray(1); gl.vertexAttribPointer(1, 2, gl.FLOAT, false, 0, 0); gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+  return 'ok';
+}
+const q = new URLSearchParams(location.search);
+if (q.get('scene')) run(q.get('scene'), +(q.get('t') || 5)).catch((e) => { document.getElementById('log').textContent = e.message; });
+</script></body></html>

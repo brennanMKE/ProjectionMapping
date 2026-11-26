@@ -150,7 +150,7 @@ From the Pi: `cec-ctl --playback` then `cec-ctl -S`. If the projector shows up a
 - `projctl off` makes the light source visibly dark (not grey black) within 2 seconds.
 - `projctl on` restores the image within 2 seconds without an Android reboot.
 - Both work 50 times in a row from a script, and still work after a projector reboot.
-- Findings written to `FINDINGS.md`: board/SoC, Android version, which methods worked, exact sysfs paths, any keylayout mappings.
+- Findings written to `FINDINGS.md` (now [`docs/hardware/projector_findings.md`](../hardware/projector_findings.md)): board/SoC, Android version, which methods worked, exact sysfs paths, any keylayout mappings.
 
 ## Ground rules
 

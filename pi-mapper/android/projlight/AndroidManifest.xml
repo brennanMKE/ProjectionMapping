@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- projlight: a tiny LAN control service for Allwinner H713 projectors.
      Calls the vendor TV API (com.softwinner.tv) to switch the light source
-     off/on without root, and opens the HDMI input. See FINDINGS.md. -->
+     off/on without root, and opens the HDMI input. See docs/hardware/projector_findings.md. -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="com.pimapper.projlight"
     android:versionCode="1"

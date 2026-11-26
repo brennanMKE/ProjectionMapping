@@ -14,3 +14,6 @@ __pycache__/
 .claude/settings.local.json
 
 # Project-specific ignores live in pi-mapper/.gitignore
+
+# your own calibration for the scene preview
+pi-mapper/tools/preview/uniforms.txt

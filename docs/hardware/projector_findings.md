@@ -1,6 +1,6 @@
 # HY300-class projector: control findings
 
-Running notes for [hy300-control-handoff.md](hy300-control-handoff.md). The
+Running notes for [the projector control brief](../briefs/hy300_control_handoff.md). The
 projector is an XBJ "Smart Mini Portable Projector" (an HY300-family clone),
 controlled from **mizar**, a Raspberry Pi Zero 2 W that feeds it HDMI and is
 powered from its USB-A port.
@@ -206,5 +206,5 @@ USB reconnect ("projector connected over USB").
 3. **IR LED** on mizar for waking from standby, using one of the 17 codes
    above, and for standby too, so neither power direction depends on ADB or
    the USB cable. Then mizar can run from its own supply with no USB link
-   (see `pi-mapper/docs/mizar-power-wifi-ir.md`).
+   (see [mizar_power_wifi_ir.md](mizar_power_wifi_ir.md)).
 4. Test `setPowerOnMode(DIRECT)` with a smart plug as an alternative to IR.

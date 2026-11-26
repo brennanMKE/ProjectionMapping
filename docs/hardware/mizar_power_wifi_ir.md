@@ -61,7 +61,7 @@ Keep it reliable:
 ## 3. IR transmitter (power on)
 
 The projector's IR receiver is a wakeup source and accepts the power code of
-17 different NEC remotes (listed in [FINDINGS.md](../../FINDINGS.md)). An IR
+17 different NEC remotes (listed in [projector findings](projector_findings.md)). An IR
 LED can send one of these; recording the physical remote isn't required,
 though it's a useful check.
 
@@ -102,7 +102,7 @@ remote's usual direction). A line of sight within a few meters is plenty.
    address and code.
 3. Send power, for example the first listed pair (address 0x01/0xFE, code 0x40):
    `ir-ctl -d /dev/lirc0 -S nec:0x0140`. If that doesn't wake it, try the
-   other byte order and the other pairs from FINDINGS.md.
+   other byte order and the other pairs from the projector findings.
 4. projd gets "Projector on" (IR) and "Projector off" (ADB) buttons, plus an
    optional schedule (for example on at dusk, off at 11 pm), and switches to
    HDMI over ADB once the projector is back on Wi-Fi.

@@ -73,7 +73,7 @@ Expected trouble spots and what to try:
 | GLSL version errors | GLES2 shaders vs desktop GL / GLES3 | Check `ofGLESWindowSettings` vs `ofGLWindowSettings` in `main.cpp` |
 
 Keep patches in a fork branch (e.g. `pi5-aarch64`) or save them as
-`docs/ofxpimapper-pi5.patch` here (`git diff > …`).
+`docs/guides/ofxpimapper_pi5.patch` here (`git diff > …`).
 
 ## 5. If it runs, test
 

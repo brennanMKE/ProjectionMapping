@@ -124,7 +124,7 @@ Steps:
 5. Expected trouble spots: legacy Pi-specific code paths (OMX player, `TARGET_RASPBERRY_PI` ifdefs written for the old Broadcom GL stack), and the addon having been tested against oF 0.11.0. Prefer the standard Linux desktop code path (oF's GStreamer video player) over the old Pi-specific one.
 6. If it runs, test: a quad surface with a video source, a grid warp surface, and an FBO source.
 
-Deliverable for Track B: `docs/ofxpimapper-pi5.md` with the exact commands, any patches (as a diff or a fork branch), and an assessment of video performance compared to Track A.
+Deliverable for Track B: `docs/ofxpimapper-pi5.md` (now [`docs/guides/ofxpimapper_pi5.md`](../guides/ofxpimapper_pi5.md)) with the exact commands, any patches (as a diff or a fork branch), and an assessment of video performance compared to Track A.
 
 ## Out of scope for now
 

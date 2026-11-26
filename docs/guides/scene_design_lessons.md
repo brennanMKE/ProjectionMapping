@@ -102,8 +102,10 @@ and the fall speed eases toward its new value. Nothing on the wall should jump.
 
 ## How we worked
 
-1. Build from a written brief (`corner-illusions-demo*.md`).
+1. Build from a written brief (one per scene in [`docs/demos/`](../demos/)).
 2. Check every scene with a webcam snapshot and a frame-rate reading on the Pi.
+   The agent fetches these itself, so it can loop until a scene works before
+   anyone looks (see [webcam capture](webcam_capture.md#close-the-loop-for-the-ai-agent)).
 3. **Watch the scenes in the room and write short notes per scene.** This
    step produced most of the improvements.
 4. Keep the favourites in a "top 12" playlist and the rest behind "Show more".

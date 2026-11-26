@@ -8,7 +8,7 @@ with Santa crossing the moon. Everything is controlled from a phone or laptop.
 
 ## Demo
 
-[![Projection mapping demo video](pi-mapper/docs/images/video-thumbnail.jpg)](https://youtu.be/vNaMZKivIM8)
+[![Projection mapping demo video](docs/images/video-thumbnail.jpg)](https://youtu.be/vNaMZKivIM8)
 
 **[Watch the demo on YouTube](https://youtu.be/vNaMZKivIM8)**: every scene, recorded in a dark room.
 
@@ -41,10 +41,9 @@ About 30 scenes in four loops, plus a "top 12" playlist you choose in the UI:
   carousel, portal juggle, crawlers.
 - **Neon:** neon grid, wire tunnel, rotor grid, equalizer.
 
-What made the best scenes work (and the Pi Zero performance lessons) is in
-[`pi-mapper/docs/corner-scene-design.md`](pi-mapper/docs/corner-scene-design.md).
-The scene briefs are in [`corner-illusions-demo.md`](corner-illusions-demo.md),
-[`-2`](corner-illusions-demo-2.md) and [`-3`](corner-illusions-demo-3.md).
+Each demo has its own page in [`docs/demos/`](docs/demos/) with its brief, what
+was built and the viewing notes that improved it. What made the best scenes work,
+and how to make your own, is in [`docs/guides/scene_design_lessons.md`](docs/guides/scene_design_lessons.md).
 
 ## What's here
 
@@ -55,9 +54,8 @@ The scene briefs are in [`corner-illusions-demo.md`](corner-illusions-demo.md),
 | [`pi-mapper/corner/`](pi-mapper/corner/) | Corner geometry tools, including structured-light calibration with a webcam. |
 | [`pi-mapper/headless/`](pi-mapper/headless/) | Browser-free setup: USB keyboard gadget for the projector, corner-pin warp. |
 | [`pi-mapper/deploy/`](pi-mapper/deploy/) | systemd units. |
-| [`pi-mapper/docs/`](pi-mapper/docs/) | Guides: headless Pi Zero setup, projector power/Wi-Fi/IR notes. |
+| [`docs/`](docs/) | All documentation: [demos](docs/demos/), [guides](docs/guides/), [hardware](docs/hardware/) and the original [briefs](docs/briefs/). |
 | [`pi-mapper/`](pi-mapper/) (`mapd`) | The earlier browser-based mapper for a Pi 5. See its [README](pi-mapper/README.md). |
-| [`pi5-projection-mapping-handoff.md`](pi5-projection-mapping-handoff.md) | The original brief. |
 
 ## Requirements
 

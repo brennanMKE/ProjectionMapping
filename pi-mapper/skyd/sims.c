@@ -1,4 +1,4 @@
-// Per-frame simulations for the Part 3 scenes (corner-illusions-demo-3.md).
+// Per-frame simulations for the Part 3 scenes (docs/demos/: gravity_carousel, portal_juggle, marble_run, breakout, crawlers).
 // Included by skyd.c. Every scene's state is the same for every pixel, so it
 // is computed here once per frame and handed to the shader as uniforms; the
 // GPU only draws. All of it is deterministic: physics steps at a fixed 120 Hz

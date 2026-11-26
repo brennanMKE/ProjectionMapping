@@ -16,4 +16,4 @@ ssh pi@mizar.local
 ssh pi@alcor.local
 ```
 
-The step-by-step guide (`pi-zero-headless-guide.md`) still uses `pizero` and `<user>` in its examples. For these displays, use `mizar` or `alcor` as the host and `pi` as the user.
+The step-by-step guide ([`pi_zero_headless_guide.md`](../guides/pi_zero_headless_guide.md)) still uses `pizero` and `<user>` in its examples. For these displays, use `mizar` or `alcor` as the host and `pi` as the user.
