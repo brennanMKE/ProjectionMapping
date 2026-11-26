@@ -41,6 +41,8 @@ About 30 scenes in four loops, plus a "top 12" playlist you choose in the UI:
   carousel, portal juggle, crawlers.
 - **Neon:** neon grid, wire tunnel, rotor grid, equalizer.
 
+What made the best scenes work (and the Pi Zero performance lessons) is in
+[`pi-mapper/docs/corner-scene-design.md`](pi-mapper/docs/corner-scene-design.md).
 The scene briefs are in [`corner-illusions-demo.md`](corner-illusions-demo.md),
 [`-2`](corner-illusions-demo-2.md) and [`-3`](corner-illusions-demo-3.md).
 
